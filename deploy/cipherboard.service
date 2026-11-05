@@ -1,0 +1,24 @@
+[Unit]
+Description=CipherBoard board server
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/node /opt/cipherboard/board-server.js
+EnvironmentFile=/etc/cipherboard.env
+Environment=PORT=8787 HOST=127.0.0.1 DATA_FILE=/var/lib/cipherboard/board-data.json
+Restart=on-failure
+DynamicUser=yes
+StateDirectory=cipherboard
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+MemoryMax=300M
+
+[Install]
+WantedBy=multi-user.target

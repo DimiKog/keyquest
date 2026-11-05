@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CipherBoard</title>
+<style>
+:root{--bg:#0e1320;--panel:#161d2f;--panel2:#1d2640;--ink:#e8ecf6;--mute:#8d98b5;--acc:#5eead4;--acc2:#a78bfa;--ok:#4ade80;--bad:#f87171;--warn:#fbbf24;--line:#2a3558}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:1100px;margin:0 auto;padding:20px 20px 60px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+h1{margin:0;font-size:28px}h1 span{color:var(--acc)}
+.sub{color:var(--mute);font-size:15px}
+.pill{display:inline-block;padding:3px 10px;border-radius:99px;font-size:13px;border:1px solid var(--line);color:var(--mute)}
+.pill.on{border-color:var(--ok);color:var(--ok)}.pill.local{border-color:var(--warn);color:var(--warn)}.pill.off{border-color:var(--bad);color:var(--bad)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:16px}
+h2{margin:0 0 4px;font-size:21px}
+h2 .n{display:inline-block;width:28px;height:28px;line-height:28px;text-align:center;border-radius:50%;background:var(--acc2);color:#120a2e;font-size:15px;margin-right:8px}
+.concept{color:var(--mute);margin:0 0 12px;font-size:15px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:820px){.grid{grid-template-columns:1fr}}
+input[type=text],textarea{width:100%;padding:10px 12px;font-size:16px;background:#0b101c;border:1px solid var(--line);border-radius:8px;color:var(--ink);font-family:inherit}
+textarea{min-height:90px;resize:vertical}
+textarea.mono,input.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px}
+input:focus,textarea:focus{outline:2px solid var(--acc);border-color:transparent}
+.lbl{font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--mute);margin:10px 0 4px}
+.lbl .tag{margin-left:6px;letter-spacing:0}.tag.sec{color:var(--bad)}.tag.pub{color:var(--ok)}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace;word-break:break-all;background:#0b101c;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px}
+button{background:var(--acc);color:#04201b;border:0;padding:9px 15px;font-size:15px;font-weight:600;border-radius:9px;cursor:pointer;font-family:inherit}
+button.sec{background:var(--panel2);color:var(--ink);border:1px solid var(--line)}
+button.sm{padding:5px 10px;font-size:13px}
+button:disabled{opacity:.35;cursor:not-allowed}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
+.msg{border:1px solid var(--line);border-radius:10px;padding:12px;margin:10px 0;background:#111829}
+.msg.mine{border-color:var(--acc)}
+.msg .meta{display:flex;gap:10px;flex-wrap:wrap;font-size:13px;color:var(--mute)}
+.badge{padding:1px 8px;border-radius:99px;background:var(--acc);color:#04201b;font-size:12px;font-weight:700}
+.cipher{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--mute);word-break:break-all;margin:6px 0;max-height:3.2em;overflow:hidden}
+.ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+.res{margin-top:6px;font-size:15px}
+.res .plain{font-size:19px;color:var(--ink);background:#0b101c;border-left:4px solid var(--ok);padding:8px 12px;border-radius:6px;margin:4px 0}
+details{color:var(--mute);font-size:15px}details summary{cursor:pointer;color:var(--acc)}
+.dir{display:flex;gap:8px;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding:8px 0;flex-wrap:wrap}
+.dir:last-child{border:0}
+footer{margin-top:24px;color:var(--mute);font-size:13px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div><h1>Cipher<span>Board</span></h1><div class="sub">A public board of encrypted messages. Everyone can see them. Only the right key can read them.</div></div>
+  <div><span class="pill" id="conn">…</span></div>
+</header>
+
+<details class="card" id="how"><summary><b>How it works (30 seconds)</b></summary>
+<ol>
+<li>You get a <b>key pair</b>. The public key can be shared; the private key never leaves your browser.</li>
+<li>To write to Bob you <b>encrypt</b> with <i>Bob's public key</i> (ECIES: secp256k1 key agreement + AES-256-GCM) — only Bob's private key can open it.</li>
+<li>You also <b>sign</b> it with <i>your private key</i> so Bob knows it is from you and was not altered.</li>
+<li>The encrypted packet goes on the <b>public board</b>. Anyone can see it; anyone can try to open it — and fail.</li>
+</ol>
+<div class="sub">The server (if any) only ever stores ciphertext. Note that sender and recipient <i>addresses</i> are visible: encryption hides the content, not who talks to whom.</div>
+</details>
+
+<div class="grid">
+<div class="card">
+  <h2><span class="n">1</span>My identity</h2>
+  <p class="concept">Generate a key pair (or import one). It lives only in this browser tab.</p>
+  <div class="row"><button id="gen">🎲 Generate new key</button><button class="sec" id="imp">Import private key</button></div>
+  <div id="idbox"></div>
+</div>
+<div class="card">
+  <h2><span class="n">2</span>Directory</h2>
+  <p class="concept">Publish your public key under a nickname so others can find it.</p>
+  <div class="row"><input type="text" id="nick" placeholder="Nickname (max 24)" maxlength="24" style="max-width:220px"><button id="pubkey" disabled>Publish my public key</button></div>
+  <div id="dir" class="sub">Loading…</div>
+</div>
+</div>
+
+<div class="card">
+  <h2><span class="n">3</span>Write a message</h2>
+  <p class="concept">Pick a recipient (or paste any public key), write, then encrypt &amp; sign. You can also paste a packet someone sent you.</p>
+  <div class="lbl">Recipient public key <span class="tag pub">128 hex chars</span></div>
+  <input type="text" class="mono" id="rcpt" placeholder="paste a public key, or click “Write to” in the directory" spellcheck="false">
+  <div class="sub" id="rcptinfo"></div>
+  <div class="lbl">Message</div>
+  <input type="text" id="plain" maxlength="300" value="Meet at the lab at 10:00">
+  <div class="row"><button id="enc" disabled>🔐 Encrypt &amp; sign</button></div>
+  <div class="lbl">Packet <span class="tag pub">this is what travels</span></div>
+  <textarea class="mono" id="packet" placeholder="The encrypted packet appears here — or paste one you received" spellcheck="false"></textarea>
+  <div class="row"><button id="post" disabled>📤 Post to board</button><button class="sec" id="copy">Copy</button><button class="sec" id="dec" disabled>🔓 Decrypt with my key</button></div>
+  <div id="packres" class="res"></div>
+</div>
+
+<div class="card">
+  <h2><span class="n">4</span>The board <span class="sub" id="count"></span></h2>
+  <p class="concept">Every packet is public. Try to open them all — you will only succeed with the ones addressed to your key.</p>
+  <div class="row"><button class="sec sm" id="refresh">↻ Refresh</button></div>
+  <div id="board"></div>
+</div>
+<footer>Educational demo. Real secp256k1, SHA-256, Keccak-256 and AES-GCM run in your browser. Don't use these keys for anything real, and don't post secrets — the board is public.</footer>
+</div>
+
+<script>
+// Set this to your board server (e.g. 'https://board.example.org') — or pass ?board=URL. Empty = local demo mode.
+const BOARD_URL_DEFAULT = 'https://learnencrypt.dimikog.org';
+
+// ==CRYPTO==
+const enc = new TextEncoder();
+const toHex = b => Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
+const fromHex = h => Uint8Array.from(h.match(/../g) || [], x => parseInt(x, 16));
+const hex256 = n => n.toString(16).padStart(64, '0');
+
+/* ---------- SHA-256 ---------- */
+const PRIMES = (() => { const p = []; for (let n = 2; p.length < 64; n++) if (p.every(q => n % q)) p.push(n); return p; })();
+const frac32 = x => Math.floor((x - Math.floor(x)) * 4294967296) >>> 0;
+const K256 = PRIMES.map(p => frac32(Math.cbrt(p)));
+const H256 = PRIMES.slice(0, 8).map(p => frac32(Math.sqrt(p)));
+const rotr = (x, n) => (x >>> n) | (x << (32 - n));
+function sha256(msg) {
+  const l = msg.length, len = ((l + 9 + 63) >> 6) << 6;
+  const m = new Uint8Array(len); m.set(msg); m[l] = 0x80;
+  const dv = new DataView(m.buffer);
+  dv.setUint32(len - 4, (l * 8) >>> 0); dv.setUint32(len - 8, Math.floor(l * 8 / 4294967296));
+  const h = Uint32Array.from(H256), w = new Uint32Array(64);
+  for (let off = 0; off < len; off += 64) {
+    for (let i = 0; i < 16; i++) w[i] = dv.getUint32(off + 4 * i);
+    for (let i = 16; i < 64; i++) {
+      const s0 = rotr(w[i - 15], 7) ^ rotr(w[i - 15], 18) ^ (w[i - 15] >>> 3);
+      const s1 = rotr(w[i - 2], 17) ^ rotr(w[i - 2], 19) ^ (w[i - 2] >>> 10);
+      w[i] = (w[i - 16] + s0 + w[i - 7] + s1) | 0;
+    }
+    let [a, b, c, d, e, f, g, hh] = h;
+    for (let i = 0; i < 64; i++) {
+      const S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25), ch = (e & f) ^ (~e & g);
+      const t1 = (hh + S1 + ch + K256[i] + w[i]) | 0;
+      const S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22), maj = (a & b) ^ (a & c) ^ (b & c);
+      const t2 = (S0 + maj) | 0;
+      hh = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+    }
+    [a, b, c, d, e, f, g, hh].forEach((v, i) => h[i] = (h[i] + v) | 0);
+  }
+  const out = new Uint8Array(32), o = new DataView(out.buffer);
+  h.forEach((v, i) => o.setUint32(4 * i, v >>> 0));
+  return out;
+}
+const sha256Hex = s => toHex(sha256(enc.encode(s)));
+
+/* ---------- Keccak-256 (Ethereum) ---------- */
+const M64 = (1n << 64n) - 1n;
+const rotl = (x, n) => n ? ((x << BigInt(n)) | (x >> BigInt(64 - n))) & M64 : x;
+function keccakf(s) {
+  let R = 1;
+  for (let r = 0; r < 24; r++) {
+    const C = [], D = [];
+    for (let x = 0; x < 5; x++) C[x] = s[x] ^ s[x + 5] ^ s[x + 10] ^ s[x + 15] ^ s[x + 20];
+    for (let x = 0; x < 5; x++) D[x] = C[(x + 4) % 5] ^ rotl(C[(x + 1) % 5], 1);
+    for (let i = 0; i < 25; i++) s[i] ^= D[i % 5];
+    let x = 1, y = 0, cur = s[1];
+    for (let t = 0; t < 24; t++) {
+      [x, y] = [y, (2 * x + 3 * y) % 5];
+      const tmp = s[x + 5 * y]; s[x + 5 * y] = rotl(cur, ((t + 1) * (t + 2) / 2) % 64); cur = tmp;
+    }
+    for (let yy = 0; yy < 5; yy++) {
+      const row = s.slice(5 * yy, 5 * yy + 5);
+      for (let xx = 0; xx < 5; xx++) s[xx + 5 * yy] = row[xx] ^ (~row[(xx + 1) % 5] & row[(xx + 2) % 5]);
+    }
+    for (let j = 0; j < 7; j++) {
+      R = ((R << 1) ^ ((R >> 7) * 0x71)) % 256;
+      if (R & 2) s[0] ^= 1n << BigInt((1 << j) - 1);
+    }
+  }
+}
+function keccak256(msg) {
+  const rate = 136, l = msg.length, len = (Math.floor(l / rate) + 1) * rate;
+  const p = new Uint8Array(len); p.set(msg); p[l] ^= 0x01; p[len - 1] ^= 0x80;
+  const s = Array(25).fill(0n);
+  for (let off = 0; off < len; off += rate) {
+    for (let i = 0; i < rate / 8; i++) {
+      let v = 0n;
+      for (let k = 0; k < 8; k++) v |= BigInt(p[off + 8 * i + k]) << BigInt(8 * k);
+      s[i] ^= v;
+    }
+    keccakf(s);
+  }
+  const out = new Uint8Array(32);
+  for (let i = 0; i < 4; i++) for (let k = 0; k < 8; k++) out[8 * i + k] = Number((s[i] >> BigInt(8 * k)) & 0xffn);
+  return out;
+}
+
+/* ---------- secp256k1 ---------- */
+const P = 2n ** 256n - 2n ** 32n - 977n;
+const N = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141n;
+const G = { x: 0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798n,
+            y: 0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8n };
+const mod = (a, m = P) => ((a % m) + m) % m;
+function inv(a, m = P) {
+  let [r0, r1] = [m, mod(a, m)], [s0, s1] = [0n, 1n];
+  while (r1) { const q = r0 / r1; [r0, r1] = [r1, r0 - q * r1]; [s0, s1] = [s1, s0 - q * s1]; }
+  return mod(s0, m);
+}
+function ptAdd(p, q) {
+  if (!p) return q; if (!q) return p;
+  let lam;
+  if (p.x === q.x) {
+    if (mod(p.y + q.y) === 0n) return null;
+    lam = mod(3n * p.x * p.x * inv(2n * p.y));
+  } else lam = mod((q.y - p.y) * inv(q.x - p.x));
+  const x = mod(lam * lam - p.x - q.x);
+  return { x, y: mod(lam * (p.x - x) - p.y) };
+}
+function ptMul(k, p = G) {
+  let r = null, a = p;
+  while (k > 0n) { if (k & 1n) r = ptAdd(r, a); a = ptAdd(a, a); k >>= 1n; }
+  return r;
+}
+function addressOf(pub) {
+  const h = toHex(keccak256(fromHex(hex256(pub.x) + hex256(pub.y)))).slice(-40);
+  const ck = toHex(keccak256(enc.encode(h)));
+  return '0x' + [...h].map((c, i) => parseInt(ck[i], 16) >= 8 ? c.toUpperCase() : c).join('');
+}
+function keyFromPriv(d) { const pub = ptMul(d); return { d, pub, addr: addressOf(pub) }; }
+const msgHash = s => BigInt('0x' + toHex(keccak256(enc.encode(s))));
+function sign(d, text) {
+  const z = msgHash(text);
+  for (let c = 0; ; c++) {
+    const k = mod(BigInt('0x' + toHex(sha256(enc.encode(hex256(d) + hex256(z) + c)))), N);
+    if (!k) continue;
+    const r = mod(ptMul(k).x, N); if (!r) continue;
+    const s = mod(inv(k, N) * (z + r * d), N); if (!s) continue;
+    return { r, s };
+  }
+}
+function verify(pub, text, sig) {
+  const { r, s } = sig;
+  if (r <= 0n || r >= N || s <= 0n || s >= N) return false;
+  const z = msgHash(text), w = inv(s, N);
+  const X = ptAdd(ptMul(mod(z * w, N)), ptMul(mod(r * w, N), pub));
+  return !!X && mod(X.x, N) === r;
+}
+function randBits(n = 256) {
+  const b = new Uint8Array(n / 8); crypto.getRandomValues(b); return b;
+}
+function randKey() {
+  for (;;) { const d = BigInt('0x' + toHex(randBits())); if (d > 0n && d < N) return d; }
+}
+// ==END CRYPTO==
+
+
+// ==PROTO==
+const hexOk = (s, n) => typeof s === 'string' && new RegExp('^[0-9a-f]{' + n + '}$').test(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const short = a => a.slice(0, 8) + '…' + a.slice(-6);
+function onCurve(p) { return p && p.x > 0n && p.x < P && p.y > 0n && p.y < P && mod(p.y * p.y) === mod(p.x * p.x * p.x + 7n); }
+function parsePub(s) {
+  s = String(s || '').trim().replace(/^0x/i, '').replace(/\s+/g, '').toLowerCase();
+  if (s.length === 130 && s.startsWith('04')) s = s.slice(2);
+  if (!hexOk(s, 128)) return null;
+  const p = { x: BigInt('0x' + s.slice(0, 64)), y: BigInt('0x' + s.slice(64)) };
+  return onCurve(p) ? p : null;
+}
+const pubHex = p => hex256(p.x) + hex256(p.y);
+async function aesKey(shared) {
+  const raw = sha256(new Uint8Array([...enc.encode('CipherBoard-v1'), ...fromHex(hex256(shared.x))]));
+  return crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']);
+}
+const sigBody = (to, eph, iv, ct) => `CipherBoard-v1|${to}|${eph}|${iv}|${ct}`;
+async function encryptFor(me, recipPub, text) {
+  const e = randKey(), eph = ptMul(e), shared = ptMul(e, recipPub);
+  const to = addressOf(recipPub), iv = randBits(96);
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: enc.encode(to) }, await aesKey(shared), enc.encode(text)));
+  const ephH = pubHex(eph), ivH = toHex(iv), ctH = toHex(ct);
+  const sig = sign(me.d, sigBody(to, ephH, ivH, ctH));
+  return { v: 1, from: me.addr, fromPub: pubHex(me.pub), to, eph: ephH, iv: ivH, ct: ctH, r: hex256(sig.r), s: hex256(sig.s) };
+}
+function checkPacket(p) {
+  return p && p.v === 1 && /^0x[0-9a-fA-F]{40}$/.test(p.from) && /^0x[0-9a-fA-F]{40}$/.test(p.to) &&
+    hexOk(p.fromPub, 128) && hexOk(p.eph, 128) && hexOk(p.iv, 24) && /^([0-9a-f]{2}){17,1200}$/.test(p.ct || '') && hexOk(p.r, 64) && hexOk(p.s, 64);
+}
+// returns {status:'bad-format'|'cannot-decrypt'|'ok', text, signedBy: addr|null, sigOk}
+async function decryptWith(me, p) {
+  if (!checkPacket(p)) return { status: 'bad-format' };
+  const eph = parsePub(p.eph); if (!eph) return { status: 'bad-format' };
+  let text;
+  try {
+    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromHex(p.iv), additionalData: enc.encode(p.to) }, await aesKey(ptMul(me.d, eph)), fromHex(p.ct));
+    text = new TextDecoder().decode(pt);
+  } catch (e) { return { status: 'cannot-decrypt' }; }
+  const fp = parsePub(p.fromPub);
+  const sigOk = !!fp && addressOf(fp) === p.from && verify(fp, sigBody(p.to, p.eph, p.iv, p.ct), { r: BigInt('0x' + p.r), s: BigInt('0x' + p.s) });
+  return { status: 'ok', text, sigOk, from: p.from };
+}
+// ==END PROTO==
+
+/* ===== Board adapters ===== */
+const BOARD_URL = (new URLSearchParams(location.search).get('board') || BOARD_URL_DEFAULT).replace(/\/$/, '');
+const LS = 'cipherboard-local-v1';
+const lsRead = () => { try { return JSON.parse(localStorage.getItem(LS)) || { keys: [], msgs: [] }; } catch (e) { return { keys: [], msgs: [] }; } };
+const lsWrite = d => { try { localStorage.setItem(LS, JSON.stringify(d)); } catch (e) {} };
+const Board = BOARD_URL ? {
+  mode: 'remote',
+  async load() { const r = await fetch(BOARD_URL + '/board'); if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); },
+  async post(path, body) {
+    const r = await fetch(BOARD_URL + path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'HTTP ' + r.status);
+  }
+} : {
+  mode: 'local',
+  async load() { return lsRead(); },
+  async post(path, body) {
+    const d = lsRead();
+    if (path === '/key') { d.keys = d.keys.filter(k => k.pub !== body.pub); d.keys.push({ nick: body.nick, pub: body.pub, t: Date.now() }); }
+    else d.msgs.push({ id: Date.now() + '-' + Math.random().toString(36).slice(2, 6), t: Date.now(), packet: body.packet });
+    lsWrite(d);
+  }
+};
+
+/* ===== App ===== */
+const $ = s => document.querySelector(s);
+let me = null, data = { keys: [], msgs: [] };
+const SS = 'cipherboard-key';
+
+function setMe(d) {
+  me = keyFromPriv(d);
+  try { sessionStorage.setItem(SS, hex256(d)); } catch (e) {}
+  renderMe(); $('#pubkey').disabled = false; $('#enc').disabled = false; $('#dec').disabled = false;
+  renderDir(); renderBoard();
+}
+function renderMe() {
+  $('#idbox').innerHTML = `
+    <div class="lbl">Address</div><div class="mono">${me.addr}</div>
+    <div class="lbl">Public key <span class="tag pub">share it</span></div>
+    <div class="mono" id="mypub">${pubHex(me.pub)}</div>
+    <div class="row"><button class="sec sm" id="cpub">Copy public key</button></div>
+    <div class="lbl">Private key <span class="tag sec">SECRET</span></div>
+    <div class="mono" id="mypriv">•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••</div>
+    <div class="row"><button class="sec sm" id="rev">Reveal / hide</button><button class="sec sm" id="cpriv">Copy (to import later)</button></div>`;
+  $('#cpub').onclick = () => navigator.clipboard.writeText(pubHex(me.pub));
+  let shown = false;
+  $('#rev').onclick = () => { shown = !shown; $('#mypriv').textContent = shown ? hex256(me.d) : '•'.repeat(64); };
+  $('#cpriv').onclick = () => navigator.clipboard.writeText(hex256(me.d));
+}
+$('#gen').onclick = () => setMe(randKey());
+$('#imp').onclick = () => {
+  const s = (prompt('Paste a 64-hex-character private key:') || '').trim().replace(/^0x/i, '').toLowerCase();
+  if (!hexOk(s, 64)) { if (s) alert('Not a valid 64-hex private key.'); return; }
+  const d = BigInt('0x' + s); if (d <= 0n || d >= N) { alert('Out of range.'); return; }
+  setMe(d);
+};
+
+function renderDir() {
+  const el = $('#dir');
+  if (!data.keys.length) { el.textContent = 'Nobody has published a key yet.'; return; }
+  el.innerHTML = data.keys.map((k, i) => {
+    const p = parsePub(k.pub); if (!p) return '';
+    const addr = addressOf(p), mine = me && addr === me.addr;
+    return `<div class="dir"><div><b>${esc(k.nick || 'anon')}</b> ${mine ? '<span class="badge">you</span>' : ''}<div class="sub">${short(addr)}</div></div>
+      <button class="sec sm" data-w="${i}" ${mine ? 'disabled' : ''}>✉ Write to</button></div>`;
+  }).join('');
+  el.querySelectorAll('[data-w]').forEach(b => b.onclick = () => { $('#rcpt').value = data.keys[+b.dataset.w].pub; rcptInfo(); $('#plain').focus(); });
+}
+function rcptInfo() {
+  const p = parsePub($('#rcpt').value);
+  $('#rcptinfo').innerHTML = !$('#rcpt').value.trim() ? '' : p ? `<span class="ok">✓ valid public key → address ${addressOf(p)}</span>` : '<span class="bad">✗ not a valid secp256k1 public key</span>';
+}
+$('#rcpt').oninput = rcptInfo;
+
+$('#pubkey').onclick = async () => {
+  const nick = $('#nick').value.trim().slice(0, 24) || 'anon';
+  try { await Board.post('/key', { nick, pub: pubHex(me.pub) }); await load(); } catch (e) { alert('Could not publish: ' + e.message); }
+};
+
+$('#enc').onclick = async () => {
+  const p = parsePub($('#rcpt').value), text = $('#plain').value;
+  if (!p) { $('#packres').innerHTML = '<span class="bad">Enter a valid recipient public key first.</span>'; return; }
+  if (!text) return;
+  const pk = await encryptFor(me, p, text);
+  $('#packet').value = JSON.stringify(pk); $('#post').disabled = false;
+  $('#packres').innerHTML = `<span class="ok">✓ Encrypted for ${short(pk.to)} and signed by you.</span> The plaintext is gone from this packet.`;
+};
+$('#packet').oninput = () => { $('#post').disabled = !$('#packet').value.trim(); };
+$('#copy').onclick = () => navigator.clipboard.writeText($('#packet').value);
+const readPacket = () => { try { return JSON.parse($('#packet').value); } catch (e) { return null; } };
+$('#post').onclick = async () => {
+  const p = readPacket();
+  if (!checkPacket(p)) { $('#packres').innerHTML = '<span class="bad">That is not a valid CipherBoard packet.</span>'; return; }
+  try { await Board.post('/msg', { packet: p }); $('#packres').innerHTML = '<span class="ok">✓ Posted to the board.</span>'; await load(); }
+  catch (e) { $('#packres').innerHTML = `<span class="bad">Could not post: ${esc(e.message)}</span>`; }
+};
+$('#dec').onclick = async () => $('#packres').innerHTML = await resultHtml(readPacket());
+
+async function resultHtml(p) {
+  const r = await decryptWith(me, p);
+  if (r.status === 'bad-format') return '<span class="bad">Not a valid packet.</span>';
+  if (r.status === 'cannot-decrypt') return `<span class="bad">🔒 Cannot decrypt.</span> <span class="sub">This packet was encrypted for another key${p.to === me.addr ? ' (or was tampered with)' : ''}. Without the matching private key the content is unreadable.</span>`;
+  return `<div class="plain">${esc(r.text)}</div>` + (r.sigOk ? `<span class="ok">✓ Signature valid — really from ${r.from}</span>` : '<span class="bad">✗ Decrypted, but the signature does NOT match the claimed sender!</span>');
+}
+
+function renderBoard() {
+  const el = $('#board'), msgs = data.msgs.slice().sort((a, b) => b.t - a.t);
+  $('#count').textContent = msgs.length ? `· ${msgs.length} packets` : '';
+  if (!msgs.length) { el.innerHTML = '<div class="sub">No packets yet. Be the first!</div>'; return; }
+  el.innerHTML = msgs.map((m, i) => {
+    const p = m.packet; if (!checkPacket(p)) return '';
+    const forMe = me && p.to === me.addr;
+    return `<div class="msg ${forMe ? 'mine' : ''}">
+      <div class="meta"><span>${new Date(m.t).toLocaleTimeString()}</span><span>from <b>${short(p.from)}</b></span><span>to <b>${short(p.to)}</b></span>${forMe ? '<span class="badge">for you</span>' : ''}</div>
+      <div class="cipher">${p.ct}</div>
+      <div class="row"><button class="sm" data-d="${i}" ${me ? '' : 'disabled'}>🔓 Try to decrypt with my key</button></div>
+      <div class="res" id="r${i}"></div></div>`;
+  }).join('');
+  el.querySelectorAll('[data-d]').forEach(b => b.onclick = async () => {
+    const i = +b.dataset.d; $('#r' + i).innerHTML = await resultHtml(msgs[i].packet);
+  });
+}
+
+async function load() {
+  try {
+    const d = await Board.load();
+    data = { keys: Array.isArray(d.keys) ? d.keys.slice(0, 200) : [], msgs: Array.isArray(d.msgs) ? d.msgs.slice(-300) : [] };
+    $('#conn').className = 'pill ' + (Board.mode === 'remote' ? 'on' : 'local');
+    $('#conn').textContent = Board.mode === 'remote' ? '● online board' : '● local demo (this browser only)';
+  } catch (e) {
+    $('#conn').className = 'pill off'; $('#conn').textContent = '● board unreachable';
+  }
+  renderDir();
+  // keep decrypt results on screen: only re-render the board when the set of messages changed
+  const sig = data.msgs.map(m => m.id).join(',');
+  if (sig !== load.sig) { load.sig = sig; renderBoard(); }
+}
+$('#refresh').onclick = load;
+setInterval(load, 5000);
+window.addEventListener('storage', load);
+try { const k = sessionStorage.getItem(SS); if (k && hexOk(k, 64)) setMe(BigInt('0x' + k)); } catch (e) {}
+load();
+</script>
+</body>
+</html>

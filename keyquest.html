@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KeyQuest</title>
+<style>
+:root{--bg:#0e1320;--panel:#161d2f;--panel2:#1d2640;--ink:#e8ecf6;--mute:#8d98b5;--acc:#5eead4;--acc2:#a78bfa;--ok:#4ade80;--bad:#f87171;--warn:#fbbf24;--line:#2a3558}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:18px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:1000px;margin:0 auto;padding:20px 20px 60px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{margin:0;font-size:28px;letter-spacing:.5px}
+h1 span{color:var(--acc)}
+.sub{color:var(--mute);font-size:15px}
+.steps{display:flex;gap:8px;margin:18px 0;flex-wrap:wrap}
+.step{flex:1;min-width:120px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--mute);cursor:pointer;font-size:15px;text-align:left}
+.step.cur{border-color:var(--acc);color:var(--ink)}
+.step.done{border-color:var(--ok)}
+.step.lock{opacity:.4;cursor:not-allowed}
+.step b{display:block;font-size:13px;letter-spacing:1px;text-transform:uppercase}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px}
+h2{margin:0 0 8px;font-size:24px}
+.concept{color:var(--mute);margin:0 0 16px}
+.mission{background:var(--panel2);border-left:4px solid var(--acc2);padding:12px 16px;border-radius:8px;margin:16px 0}
+.mission b.t{color:var(--acc2);text-transform:uppercase;font-size:13px;letter-spacing:1px;display:block}
+input[type=text]{width:100%;padding:12px 14px;font-size:20px;background:#0b101c;border:1px solid var(--line);border-radius:8px;color:var(--ink);font-family:inherit}
+input[type=text]:focus{outline:2px solid var(--acc);border-color:transparent}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace;word-break:break-all;background:#0b101c;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:15px;margin:6px 0 12px}
+.mono.big{font-size:20px}
+.lbl{font-size:13px;letter-spacing:1px;text-transform:uppercase;color:var(--mute);margin-top:10px}
+.lbl .tag{color:var(--bad);margin-left:6px}
+.lbl .tag.pub{color:var(--ok)}
+button{background:var(--acc);color:#04201b;border:0;padding:11px 18px;font-size:17px;font-weight:600;border-radius:9px;cursor:pointer;font-family:inherit}
+button.sec{background:var(--panel2);color:var(--ink);border:1px solid var(--line)}
+button:disabled{opacity:.35;cursor:not-allowed}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:10px 0}
+.lead{color:var(--acc);font-weight:700}
+.ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+.bits{display:grid;grid-template-columns:repeat(32,1fr);gap:3px;margin:10px 0}
+.bit{aspect-ratio:1;border-radius:4px;border:1px solid var(--line);background:#0b101c;color:var(--mute);font-size:11px;padding:0;display:flex;align-items:center;justify-content:center;font-weight:500}
+.bit.on{background:var(--acc2);color:#120a2e;border-color:var(--acc2)}
+.flow{display:grid;grid-template-columns:1fr;gap:0}
+.arrow{text-align:center;color:var(--mute);font-size:14px;margin:-4px 0 2px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:760px){.two{grid-template-columns:1fr}.bits{grid-template-columns:repeat(16,1fr)}}
+.panel{background:#111829;border:1px solid var(--line);border-radius:12px;padding:14px}
+.panel h3{margin:0 0 6px;font-size:16px;color:var(--acc)}
+.big-num{font-size:34px;font-weight:700;font-variant-numeric:tabular-nums;word-break:break-all}
+.nav{display:flex;justify-content:space-between;margin-top:20px}
+.verdict{font-size:22px;font-weight:700;margin:8px 0}
+.vault{font-size:46px;text-align:center;margin:6px 0}
+footer{margin-top:28px;color:var(--mute);font-size:13px;text-align:center}
+.badge{font-size:64px;text-align:center}
+ul.recap{padding-left:20px}ul.recap li{margin:6px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div><h1>Key<span>Quest</span></h1><div class="sub">How blockchain keys really work — 4 levels, ~15 minutes, nothing to install</div></div>
+  <button class="sec" id="reset">↺ Restart</button>
+</header>
+<div class="steps" id="steps"></div>
+<div class="card" id="app"></div>
+<footer>Real SHA-256, secp256k1 and Keccak-256 are running in your browser. Educational demo — never use these keys for real funds.</footer>
+</div>
+
+<script>
+// ==CRYPTO==
+const enc = new TextEncoder();
+const toHex = b => Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
+const fromHex = h => Uint8Array.from(h.match(/../g) || [], x => parseInt(x, 16));
+const hex256 = n => n.toString(16).padStart(64, '0');
+
+/* ---------- SHA-256 ---------- */
+const PRIMES = (() => { const p = []; for (let n = 2; p.length < 64; n++) if (p.every(q => n % q)) p.push(n); return p; })();
+const frac32 = x => Math.floor((x - Math.floor(x)) * 4294967296) >>> 0;
+const K256 = PRIMES.map(p => frac32(Math.cbrt(p)));
+const H256 = PRIMES.slice(0, 8).map(p => frac32(Math.sqrt(p)));
+const rotr = (x, n) => (x >>> n) | (x << (32 - n));
+function sha256(msg) {
+  const l = msg.length, len = ((l + 9 + 63) >> 6) << 6;
+  const m = new Uint8Array(len); m.set(msg); m[l] = 0x80;
+  const dv = new DataView(m.buffer);
+  dv.setUint32(len - 4, (l * 8) >>> 0); dv.setUint32(len - 8, Math.floor(l * 8 / 4294967296));
+  const h = Uint32Array.from(H256), w = new Uint32Array(64);
+  for (let off = 0; off < len; off += 64) {
+    for (let i = 0; i < 16; i++) w[i] = dv.getUint32(off + 4 * i);
+    for (let i = 16; i < 64; i++) {
+      const s0 = rotr(w[i - 15], 7) ^ rotr(w[i - 15], 18) ^ (w[i - 15] >>> 3);
+      const s1 = rotr(w[i - 2], 17) ^ rotr(w[i - 2], 19) ^ (w[i - 2] >>> 10);
+      w[i] = (w[i - 16] + s0 + w[i - 7] + s1) | 0;
+    }
+    let [a, b, c, d, e, f, g, hh] = h;
+    for (let i = 0; i < 64; i++) {
+      const S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25), ch = (e & f) ^ (~e & g);
+      const t1 = (hh + S1 + ch + K256[i] + w[i]) | 0;
+      const S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22), maj = (a & b) ^ (a & c) ^ (b & c);
+      const t2 = (S0 + maj) | 0;
+      hh = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+    }
+    [a, b, c, d, e, f, g, hh].forEach((v, i) => h[i] = (h[i] + v) | 0);
+  }
+  const out = new Uint8Array(32), o = new DataView(out.buffer);
+  h.forEach((v, i) => o.setUint32(4 * i, v >>> 0));
+  return out;
+}
+const sha256Hex = s => toHex(sha256(enc.encode(s)));
+
+/* ---------- Keccak-256 (Ethereum) ---------- */
+const M64 = (1n << 64n) - 1n;
+const rotl = (x, n) => n ? ((x << BigInt(n)) | (x >> BigInt(64 - n))) & M64 : x;
+function keccakf(s) {
+  let R = 1;
+  for (let r = 0; r < 24; r++) {
+    const C = [], D = [];
+    for (let x = 0; x < 5; x++) C[x] = s[x] ^ s[x + 5] ^ s[x + 10] ^ s[x + 15] ^ s[x + 20];
+    for (let x = 0; x < 5; x++) D[x] = C[(x + 4) % 5] ^ rotl(C[(x + 1) % 5], 1);
+    for (let i = 0; i < 25; i++) s[i] ^= D[i % 5];
+    let x = 1, y = 0, cur = s[1];
+    for (let t = 0; t < 24; t++) {
+      [x, y] = [y, (2 * x + 3 * y) % 5];
+      const tmp = s[x + 5 * y]; s[x + 5 * y] = rotl(cur, ((t + 1) * (t + 2) / 2) % 64); cur = tmp;
+    }
+    for (let yy = 0; yy < 5; yy++) {
+      const row = s.slice(5 * yy, 5 * yy + 5);
+      for (let xx = 0; xx < 5; xx++) s[xx + 5 * yy] = row[xx] ^ (~row[(xx + 1) % 5] & row[(xx + 2) % 5]);
+    }
+    for (let j = 0; j < 7; j++) {
+      R = ((R << 1) ^ ((R >> 7) * 0x71)) % 256;
+      if (R & 2) s[0] ^= 1n << BigInt((1 << j) - 1);
+    }
+  }
+}
+function keccak256(msg) {
+  const rate = 136, l = msg.length, len = (Math.floor(l / rate) + 1) * rate;
+  const p = new Uint8Array(len); p.set(msg); p[l] ^= 0x01; p[len - 1] ^= 0x80;
+  const s = Array(25).fill(0n);
+  for (let off = 0; off < len; off += rate) {
+    for (let i = 0; i < rate / 8; i++) {
+      let v = 0n;
+      for (let k = 0; k < 8; k++) v |= BigInt(p[off + 8 * i + k]) << BigInt(8 * k);
+      s[i] ^= v;
+    }
+    keccakf(s);
+  }
+  const out = new Uint8Array(32);
+  for (let i = 0; i < 4; i++) for (let k = 0; k < 8; k++) out[8 * i + k] = Number((s[i] >> BigInt(8 * k)) & 0xffn);
+  return out;
+}
+
+/* ---------- secp256k1 ---------- */
+const P = 2n ** 256n - 2n ** 32n - 977n;
+const N = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141n;
+const G = { x: 0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798n,
+            y: 0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8n };
+const mod = (a, m = P) => ((a % m) + m) % m;
+function inv(a, m = P) {
+  let [r0, r1] = [m, mod(a, m)], [s0, s1] = [0n, 1n];
+  while (r1) { const q = r0 / r1; [r0, r1] = [r1, r0 - q * r1]; [s0, s1] = [s1, s0 - q * s1]; }
+  return mod(s0, m);
+}
+function ptAdd(p, q) {
+  if (!p) return q; if (!q) return p;
+  let lam;
+  if (p.x === q.x) {
+    if (mod(p.y + q.y) === 0n) return null;
+    lam = mod(3n * p.x * p.x * inv(2n * p.y));
+  } else lam = mod((q.y - p.y) * inv(q.x - p.x));
+  const x = mod(lam * lam - p.x - q.x);
+  return { x, y: mod(lam * (p.x - x) - p.y) };
+}
+function ptMul(k, p = G) {
+  let r = null, a = p;
+  while (k > 0n) { if (k & 1n) r = ptAdd(r, a); a = ptAdd(a, a); k >>= 1n; }
+  return r;
+}
+function addressOf(pub) {
+  const h = toHex(keccak256(fromHex(hex256(pub.x) + hex256(pub.y)))).slice(-40);
+  const ck = toHex(keccak256(enc.encode(h)));
+  return '0x' + [...h].map((c, i) => parseInt(ck[i], 16) >= 8 ? c.toUpperCase() : c).join('');
+}
+function keyFromPriv(d) { const pub = ptMul(d); return { d, pub, addr: addressOf(pub) }; }
+const msgHash = s => BigInt('0x' + toHex(keccak256(enc.encode(s))));
+function sign(d, text) {
+  const z = msgHash(text);
+  for (let c = 0; ; c++) {
+    const k = mod(BigInt('0x' + toHex(sha256(enc.encode(hex256(d) + hex256(z) + c)))), N);
+    if (!k) continue;
+    const r = mod(ptMul(k).x, N); if (!r) continue;
+    const s = mod(inv(k, N) * (z + r * d), N); if (!s) continue;
+    return { r, s };
+  }
+}
+function verify(pub, text, sig) {
+  const { r, s } = sig;
+  if (r <= 0n || r >= N || s <= 0n || s >= N) return false;
+  const z = msgHash(text), w = inv(s, N);
+  const X = ptAdd(ptMul(mod(z * w, N)), ptMul(mod(r * w, N), pub));
+  return !!X && mod(X.x, N) === r;
+}
+function randBits(n = 256) {
+  const b = new Uint8Array(n / 8); crypto.getRandomValues(b); return b;
+}
+function randKey() {
+  for (;;) { const d = BigInt('0x' + toHex(randBits())); if (d > 0n && d < N) return d; }
+}
+// ==END CRYPTO==
+
+/* ================= GAME ================= */
+const $ = s => document.querySelector(s);
+const app = $('#app');
+const NAMES = ['Hash', 'Make a key', 'Sign', 'The heist'];
+let S;
+function fresh() { S = { lvl: 0, done: [false, false, false, false], key: null, bits: null }; }
+fresh();
+
+function renderSteps() {
+  $('#steps').innerHTML = NAMES.map((n, i) => {
+    const locked = i > 0 && !S.done[i - 1] && i > S.lvl;
+    return `<button class="step ${i === S.lvl ? 'cur' : ''} ${S.done[i] ? 'done' : ''} ${locked ? 'lock' : ''}" data-i="${i}"><b>Level ${i + 1} ${S.done[i] ? '✓' : ''}</b>${n}</button>`;
+  }).join('') + `<button class="step ${S.lvl === 4 ? 'cur' : ''} ${S.done[3] ? '' : 'lock'}" data-i="4"><b>Finish</b>Recap</button>`;
+  document.querySelectorAll('.step').forEach(b => b.onclick = () => {
+    const i = +b.dataset.i; if (b.classList.contains('lock')) return; S.lvl = i; render();
+  });
+}
+function nav(i, extra = '') {
+  return `<div class="nav"><button class="sec" id="prev" ${i === 0 ? 'disabled' : ''}>← Back</button>${extra}<button id="next" ${S.done[i] ? '' : 'disabled'}>${i === 3 ? 'Finish →' : 'Next level →'}</button></div>`;
+}
+function wireNav(i) {
+  $('#prev').onclick = () => { S.lvl = i - 1; render(); };
+  $('#next').onclick = () => { S.lvl = i + 1; render(); };
+}
+function complete(i) { S.done[i] = true; $('#next').disabled = false; renderSteps(); }
+function lead0(h) { const m = h.match(/^0*/)[0]; return `<span class="lead">${m}</span>${h.slice(m.length)}`; }
+const fmt = n => n.toLocaleString('en-US');
+
+/* ---- Level 1: hashing ---- */
+function l1() {
+  app.innerHTML = `
+  <h2>Level 1 · Hashing — the digital fingerprint</h2>
+  <p class="concept">A hash function turns <i>any</i> text into a fixed-size fingerprint (256 bits). Same input → always the same fingerprint. Change a single letter → a completely different one. And you can never go backwards from fingerprint to text.</p>
+  <div class="lbl">Type anything</div>
+  <input type="text" id="in" value="Hello Malta" autocomplete="off" spellcheck="false">
+  <div class="lbl">SHA-256 fingerprint</div>
+  <div class="mono big" id="out"></div>
+  <div class="mission"><b class="t">Mission A · by hand</b>Change the text until the fingerprint <b>starts with a 0</b>. Odds: 1 in 16. <span id="a"></span></div>
+  <div class="mission"><b class="t">Mission B · let the machine try</b>Now we need <b>0000</b> at the start — 1 in 65,536. This is exactly what Bitcoin/Ethereum-PoW "mining" is: guessing until the fingerprint looks right.
+    <div class="row"><button id="mine">⛏ Auto-mine</button><span id="stat" class="sub"></span></div>
+    <div class="mono" id="mout" style="display:none"></div></div>
+  ${nav(0)}`;
+  wireNav(0);
+  const inp = $('#in');
+  const upd = () => {
+    const h = sha256Hex(inp.value); $('#out').innerHTML = lead0(h);
+    $('#a').innerHTML = h[0] === '0' ? '<b class="ok">✓ Found it!</b>' : '';
+  };
+  inp.oninput = upd; upd();
+  $('#mine').onclick = () => {
+    const base = inp.value; let nonce = 0, t0 = performance.now(); $('#mine').disabled = true;
+    $('#mout').style.display = 'block';
+    (function chunk() {
+      for (let i = 0; i < 1500; i++, nonce++) {
+        const h = sha256Hex(base + nonce);
+        if (h.startsWith('0000')) {
+          $('#mout').innerHTML = `"${base}${nonce}"<br>${lead0(h)}`;
+          $('#stat').innerHTML = `<b class="ok">Found after ${fmt(nonce + 1)} guesses</b> (${Math.round(performance.now() - t0)} ms). Try again — it takes a different number of guesses every time.`;
+          $('#mine').disabled = false; complete(0); return;
+        }
+      }
+      $('#stat').textContent = `${fmt(nonce)} guesses so far…`; setTimeout(chunk);
+    })();
+  };
+}
+
+/* ---- Level 2: keys ---- */
+function l2() {
+  if (!S.bits) S.bits = Array(256).fill(0);
+  app.innerHTML = `
+  <h2>Level 2 · Make your own key</h2>
+  <p class="concept">A <b>private key</b> is just a huge random number — 256 coin flips. Your <b>public key</b> is computed from it with elliptic-curve maths (secp256k1), and your <b>address</b> is a short hash of the public key. Each arrow below is one-way.</p>
+  <div class="mission"><b class="t">Mission</b>Create a key: flip the 256 bits yourself (click them) or roll the dice. Then try to go <i>backwards</i> from the public key to the private key.</div>
+  <div class="row"><button id="dice">🎲 Roll the dice</button><button class="sec" id="clr">Clear</button><span class="sub">Click any bit to flip it</span></div>
+  <div class="bits" id="bits"></div>
+  <div class="flow" id="flow"></div>
+  <div class="panel" style="margin-top:14px"><h3>Go backwards</h3>
+    <div class="sub">An attacker knows your public key and wants your private key. Our best try: guess random private keys and check if they produce your public key. (Each guess needs real elliptic-curve maths, so this browser manages only a few per second — a real attacker is millions of times faster. It makes no difference.)</div>
+    <div class="row"><button id="atk" disabled>🕵 Attack for 4 seconds</button><span id="atkout" class="big-num" style="font-size:22px"></span></div>
+    <div id="atkres"></div></div>
+  ${nav(1)}`;
+  wireNav(1);
+  const bitsEl = $('#bits');
+  bitsEl.innerHTML = S.bits.map((b, i) => `<button class="bit ${b ? 'on' : ''}" data-i="${i}">${b}</button>`).join('');
+  const showKey = () => {
+    let d = BigInt('0b' + S.bits.join(''));
+    if (d === 0n || d >= N) { S.key = null; $('#flow').innerHTML = '<div class="sub warn">Flip at least one bit (all zeros is not a valid key).</div>'; $('#atk').disabled = true; return; }
+    S.key = keyFromPriv(d);
+    $('#flow').innerHTML = `
+      <div class="lbl">Private key <span class="tag">SECRET — never share</span></div><div class="mono">${hex256(S.key.d)}</div>
+      <div class="arrow">↓ elliptic-curve multiplication (one-way) ↓</div>
+      <div class="lbl">Public key <span class="tag pub">safe to share</span></div><div class="mono">x: ${hex256(S.key.pub.x)}<br>y: ${hex256(S.key.pub.y)}</div>
+      <div class="arrow">↓ Keccak-256 hash, keep last 20 bytes ↓</div>
+      <div class="lbl">Address <span class="tag pub">your "account number"</span></div><div class="mono big">${S.key.addr}</div>`;
+    $('#atk').disabled = false;
+  };
+  const setBits = arr => { S.bits = arr; bitsEl.querySelectorAll('.bit').forEach((el, i) => { el.className = 'bit' + (arr[i] ? ' on' : ''); el.textContent = arr[i]; }); showKey(); };
+  bitsEl.onclick = e => { const b = e.target.closest('.bit'); if (!b) return; const i = +b.dataset.i; const a = S.bits.slice(); a[i] ^= 1; setBits(a); };
+  $('#dice').onclick = () => setBits(Array.from(randBits(), x => x.toString(2).padStart(8, '0')).join('').split('').map(Number));
+  $('#clr').onclick = () => setBits(Array(256).fill(0));
+  showKey();
+  $('#atk').onclick = () => {
+    const target = S.key.pub, t0 = performance.now(); let n = 0n, hit = false; $('#atk').disabled = true; $('#atkres').innerHTML = '';
+    (function loop() {
+      if (performance.now() - t0 > 4000) {
+        $('#atkres').innerHTML = `<p><b class="bad">No match.</b> ${fmt(n)} guesses out of <b>2²⁵⁶ ≈ 1.16 × 10⁷⁷</b> possible keys. For comparison, there are about 10⁸⁰ atoms in the observable universe. You just searched a fraction so small it rounds to zero.</p>`;
+        $('#atk').disabled = false; complete(1); return;
+      }
+      const t1 = performance.now();
+      while (performance.now() - t1 < 40) { const p = ptMul(randKey()); n++; if (p.x === target.x && p.y === target.y) hit = true; }
+      $('#atkout').textContent = `${fmt(n)} guesses…`; setTimeout(loop);
+    })();
+  };
+}
+
+/* ---- Level 3: signatures ---- */
+function l3() {
+  if (!S.key) S.key = keyFromPriv(randKey());
+  const seen = { ok: false, bad: false }; let sig = null, rsig = null;
+  const mal = keyFromPriv(randKey());
+  app.innerHTML = `
+  <h2>Level 3 · Sign a message</h2>
+  <p class="concept">A signature proves two things at once: <b>this message came from the owner of the private key</b> and <b>it was not altered</b>. The private key never leaves your device — the receiver only needs your public key.</p>
+  <div class="mission"><b class="t">Mission</b>1) Sign the message. 2) Verify it as the receiver. 3) Play the attacker: change the message, then try to fool Bob — first with the old signature, then by <b>forging</b> a new signature with your own key.</div>
+  <div class="two">
+    <div class="panel"><h3>👩 Alice (you)</h3>
+      <div class="sub">Address: <span style="word-break:break-all">${S.key.addr}</span></div>
+      <div class="lbl">Message</div><input type="text" id="msg" value="Pay Bob 5 ETH">
+      <div class="row"><button id="sign">✍ Sign with private key</button></div>
+      <div class="lbl">Signature (r, s)</div><div class="mono" id="sig" style="min-height:48px">—</div>
+      <div class="row"><button class="sec" id="send" disabled>📨 Send to Bob →</button></div></div>
+    <div class="panel"><h3>👨 Bob (receiver)</h3>
+      <div class="sub">Bob has: the message, the signature, and Alice's <b>public</b> key. Nothing else.</div>
+      <div class="lbl">Received message (editable — be the attacker!)</div><input type="text" id="rmsg" disabled>
+      <div class="lbl">Received signature</div><div class="mono" id="rsig" style="min-height:48px">—</div>
+      <div class="row"><button id="ver" disabled>🔍 Verify against Alice's public key</button><button class="sec" id="forge" disabled>🦹 Forge: re-sign with my own key</button></div>
+      <div class="verdict" id="verdict"></div></div>
+  </div>
+  <div id="hint" class="sub"></div>
+  ${nav(2)}`;
+  wireNav(2);
+  const check = () => { if (seen.ok && seen.bad) { $('#hint').innerHTML = '<b class="ok">✓ You saw it both ways: a genuine message verifies, a tampered one is rejected — and Bob never learned the private key.</b>'; complete(2); } };
+  $('#sign').onclick = () => {
+    sig = sign(S.key.d, $('#msg').value);
+    $('#sig').innerHTML = `r: ${hex256(sig.r)}<br>s: ${hex256(sig.s)}`; $('#send').disabled = false;
+  };
+  $('#msg').oninput = () => { $('#sig').textContent = '—'; sig = null; $('#send').disabled = true; };
+  $('#send').onclick = () => {
+    rsig = sig; $('#rsig').innerHTML = `r: ${hex256(rsig.r)}<br>s: ${hex256(rsig.s)}`;
+    $('#rmsg').disabled = false; $('#rmsg').value = $('#msg').value; $('#ver').disabled = false; $('#forge').disabled = false; $('#verdict').textContent = '';
+    $('#hint').textContent = 'Now press Verify. Then change one character in Bob\'s message and verify again.';
+  };
+  $('#forge').onclick = () => {
+    rsig = sign(mal.d, $('#rmsg').value);
+    $('#rsig').innerHTML = `<span class="warn">(forged by Mallory with her own key)</span><br>r: ${hex256(rsig.r)}<br>s: ${hex256(rsig.s)}`;
+    $('#verdict').textContent = ''; $('#hint').textContent = 'Mallory signed the altered message with her own key. Press Verify — will Bob accept it as Alice\'s?';
+  };
+  $('#ver').onclick = () => {
+    const m = $('#rmsg').value, ok = verify(S.key.pub, m, rsig);
+    let html = ok ? '<span class="ok">✓ VALID — signed by Alice, message intact</span>' : '<span class="bad">✗ INVALID — not signed by Alice for this message</span>';
+    if (!ok && verify(mal.pub, m, rsig)) html += `<div class="sub" style="font-weight:400;margin-top:6px">The signature itself is perfectly valid — but for the key of <b>Mallory</b> (${mal.addr}), not Alice. Without Alice's private key, the best an attacker can produce is a signature that proves <i>someone else</i> signed.</div>`;
+    $('#verdict').innerHTML = html;
+    if (ok) seen.ok = true; else seen.bad = true; check();
+  };
+}
+
+/* ---- Level 4: heist ---- */
+function l4() {
+  const flags = { atk: false, lost: false };
+  app.innerHTML = `
+  <h2>Level 4 · The heist (and the catch)</h2>
+  <p class="concept">Your funds sit at an address. Anyone who can produce a valid signature from the matching private key can move them. There is no bank, no password reset, no "forgot my key" button.</p>
+  <div class="mission"><b class="t">Mission</b>1) Watch a supercomputer-scale thief try to steal the funds. 2) Then see the other side of the same coin.</div>
+  <div class="two">
+    <div class="panel"><h3>🏴‍☠️ Attack</h3>
+      <div class="vault">🏦 100 ETH</div>
+      <div class="sub">Thief speed (simulated, absurdly generous): <b>1,000,000,000,000 guesses per second</b></div>
+      <div class="row"><button id="rob">Start the heist</button></div>
+      <div class="lbl">Guesses so far</div><div class="big-num" id="cnt">0</div>
+      <div class="lbl">Chance this is the right key</div><div class="mono" id="chance">—</div>
+      <div id="atkres"></div></div>
+    <div class="panel"><h3>🔑 Defence?</h3>
+      <div class="vault">🔒 100 ETH</div>
+      <div class="sub">What if <i>you</i> lose your key?</div>
+      <div class="row"><button class="sec" id="lose">I lost my private key…</button></div>
+      <div id="loseres"></div></div>
+  </div>
+  ${nav(3)}`;
+  wireNav(3);
+  const check = () => { if (flags.atk && flags.lost) complete(3); };
+  $('#rob').onclick = () => {
+    $('#rob').disabled = true; const t0 = performance.now();
+    (function loop() {
+      const el = performance.now() - t0;
+      const n = BigInt(Math.floor(el)) * 1000000000n; // 1e12 per second = 1e9 per ms
+      $('#cnt').textContent = fmt(n);
+      $('#chance').textContent = `${n.toString().length > 0 ? n.toString() : 0} / 115792089237316195423570985008687907853269984665640564039457584007913129639936`.replace(/^(\d+) \/ (\d+)$/, (_, a, b) => `${(Number(a) / 1.1579e77).toExponential(2)}  (≈ 0)`);
+      if (el < 5000) { requestAnimationFrame(loop); return; }
+      $('#atkres').innerHTML = `<p><b class="bad">Still locked.</b> At this speed, trying <i>every</i> key would take about <b>3.7 × 10⁵⁷ years</b>. The universe is 1.4 × 10¹⁰ years old.</p>`;
+      flags.atk = true; $('#rob').disabled = false; check();
+    })();
+  };
+  $('#lose').onclick = () => {
+    $('#loseres').innerHTML = `<p><b class="warn">Gone. Forever.</b> The same maths that stops the thief stops <i>you</i>: nobody can recompute the key, not even the network operators. An estimated ~20% of all Bitcoin is stuck this way.</p><p class="sub">That is the trade-off of self-sovereignty: <b>you</b> are the bank. It's why wallets use backup phrases, hardware devices, and social recovery.</p>`;
+    flags.lost = true; check();
+  };
+}
+
+/* ---- Finish ---- */
+function fin() {
+  app.innerHTML = `
+  <div class="badge">🏆</div>
+  <h2 style="text-align:center">Quest complete</h2>
+  <p class="concept" style="text-align:center">You now understand the core of every blockchain account.</p>
+  <ul class="recap">
+    <li><b>Hash</b> — a one-way fingerprint. Mining = guessing until the fingerprint looks right.</li>
+    <li><b>Private key</b> — a random 256-bit number. Whoever knows it <i>is</i> the owner.</li>
+    <li><b>Public key → address</b> — derived one-way from the private key; safe to publish.</li>
+    <li><b>Signature</b> — proves ownership and integrity without revealing the private key.</li>
+    <li><b>No recovery</b> — security and responsibility are the same thing here.</li>
+  </ul>
+  <div class="mission"><b class="t">Next</b>Try it on a real network: Web3Edu labs at <b>web3edu.dimikog.org</b></div>
+  <div class="nav"><button class="sec" id="prev">← Back</button><button id="again">↺ Play again</button></div>`;
+  $('#prev').onclick = () => { S.lvl = 3; render(); };
+  $('#again').onclick = () => { fresh(); render(); };
+}
+
+function render() { renderSteps(); [l1, l2, l3, l4, fin][S.lvl](); window.scrollTo(0, 0); }
+$('#reset').onclick = () => { fresh(); render(); };
+render();
+</script>
+</body>
+</html>
