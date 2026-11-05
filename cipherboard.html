@@ -40,6 +40,8 @@ button:disabled{opacity:.35;cursor:not-allowed}
 .ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}
 .res{margin-top:6px;font-size:15px}
 .res .plain{font-size:19px;color:var(--ink);background:#0b101c;border-left:4px solid var(--ok);padding:8px 12px;border-radius:6px;margin:4px 0}
+ol.quick{margin:8px 0 0;padding-left:22px}ol.quick li{margin:6px 0;color:var(--ink)}
+ol.quick li.done{color:var(--ok)}ol.quick li.done::after{content:" ✓";font-weight:700}
 details{color:var(--mute);font-size:15px}details summary{cursor:pointer;color:var(--acc)}
 .dir{display:flex;gap:8px;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding:8px 0;flex-wrap:wrap}
 .dir:last-child{border:0}
@@ -52,6 +54,18 @@ footer{margin-top:24px;color:var(--mute);font-size:13px;text-align:center}
   <div><h1>Cipher<span>Board</span></h1><div class="sub">A public board of encrypted messages. Everyone can see them. Only the right key can read them.</div></div>
   <div><span class="pill" id="conn">…</span></div>
 </header>
+
+<div class="card" id="quick">
+<h2>Try it in 5 steps</h2>
+<div class="concept">Everyone shares this one board, so you will meet the other participants here. Steps tick off by themselves as you complete them.</div>
+<ol class="quick">
+<li data-s="1"><b>Make your key</b> — click <i>Generate new key</i> in box 1. <span class="sub">Copy your private key somewhere safe: close the tab and it is gone, forever (that's the point).</span></li>
+<li data-s="2"><b>Say hello</b> — type a nickname and click <i>Publish my public key</i> in box 2.</li>
+<li data-s="3"><b>Send a secret</b> — click <i>Write to</i> next to someone in the directory, write a message, click <i>Encrypt &amp; sign</i>, then <i>Post to board</i>.</li>
+<li data-s="4"><b>Read yours</b> — wait for a packet marked <span class="badge">for you</span> on the board and click <i>Try to decrypt</i>. Check the signature line!</li>
+<li data-s="5"><b>Fail on purpose</b> — click <i>Try to decrypt</i> on a packet that is <u>not</u> for you. You can see it, but you can't read it.</li>
+</ol>
+</div>
 
 <details class="card" id="how"><summary><b>How it works (30 seconds)</b></summary>
 <ol>
@@ -318,13 +332,14 @@ const Board = BOARD_URL ? {
 
 /* ===== App ===== */
 const $ = s => document.querySelector(s);
+const mark = n => { const li = document.querySelector('#quick li[data-s="' + n + '"]'); if (li) li.classList.add('done'); };
 let me = null, data = { keys: [], msgs: [] };
 const SS = 'cipherboard-key';
 
 function setMe(d) {
   me = keyFromPriv(d);
   try { sessionStorage.setItem(SS, hex256(d)); } catch (e) {}
-  renderMe(); $('#pubkey').disabled = false; $('#enc').disabled = false; $('#dec').disabled = false;
+  mark(1); renderMe(); $('#pubkey').disabled = false; $('#enc').disabled = false; $('#dec').disabled = false;
   renderDir(); renderBoard();
 }
 function renderMe() {
@@ -368,7 +383,7 @@ $('#rcpt').oninput = rcptInfo;
 
 $('#pubkey').onclick = async () => {
   const nick = $('#nick').value.trim().slice(0, 24) || 'anon';
-  try { await Board.post('/key', { nick, pub: pubHex(me.pub) }); await load(); } catch (e) { alert('Could not publish: ' + e.message); }
+  try { await Board.post('/key', { nick, pub: pubHex(me.pub) }); mark(2); await load(); } catch (e) { alert('Could not publish: ' + e.message); }
 };
 
 $('#enc').onclick = async () => {
@@ -385,13 +400,15 @@ const readPacket = () => { try { return JSON.parse($('#packet').value); } catch 
 $('#post').onclick = async () => {
   const p = readPacket();
   if (!checkPacket(p)) { $('#packres').innerHTML = '<span class="bad">That is not a valid CipherBoard packet.</span>'; return; }
-  try { await Board.post('/msg', { packet: p }); $('#packres').innerHTML = '<span class="ok">✓ Posted to the board.</span>'; await load(); }
+  try { await Board.post('/msg', { packet: p }); $('#packres').innerHTML = '<span class="ok">✓ Posted to the board.</span>'; mark(3); await load(); }
   catch (e) { $('#packres').innerHTML = `<span class="bad">Could not post: ${esc(e.message)}</span>`; }
 };
 $('#dec').onclick = async () => $('#packres').innerHTML = await resultHtml(readPacket());
 
 async function resultHtml(p) {
   const r = await decryptWith(me, p);
+  if (r.status === 'ok' && p.to === me.addr) mark(4);
+  if (r.status === 'cannot-decrypt' && p.to !== me.addr) mark(5);
   if (r.status === 'bad-format') return '<span class="bad">Not a valid packet.</span>';
   if (r.status === 'cannot-decrypt') return `<span class="bad">🔒 Cannot decrypt.</span> <span class="sub">This packet was encrypted for another key${p.to === me.addr ? ' (or was tampered with)' : ''}. Without the matching private key the content is unreadable.</span>`;
   return `<div class="plain">${esc(r.text)}</div>` + (r.sigOk ? `<span class="ok">✓ Signature valid — really from ${r.from}</span>` : '<span class="bad">✗ Decrypted, but the signature does NOT match the claimed sender!</span>');
