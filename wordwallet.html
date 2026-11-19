@@ -63,6 +63,8 @@ details{color:var(--mute);font-size:15px;margin-top:10px}details summary{cursor:
 .acct .pk{font:12px ui-monospace,Menlo,monospace;color:var(--mute);word-break:break-all;margin-top:4px}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:10px 0}
 .num{width:130px;flex:none;min-width:0}
+.bal{margin-top:5px;font-weight:700;color:var(--acc)}.bal.zero{color:var(--mute);font-weight:500}
+.net{display:inline-block;padding:3px 10px;border-radius:99px;font-size:13px;border:1px solid var(--line);color:var(--mute)}.net.on{border-color:var(--ok);color:var(--ok)}.net.off{border-color:var(--bad);color:var(--bad)}
 .callout{background:linear-gradient(135deg,#1c1f4a,#2a1a45);border:1px solid #4a3a8a;border-radius:14px;padding:14px 18px;margin-top:14px}
 .callout h3{margin:0 0 6px;font-size:18px}.callout ul{margin:6px 0 0;padding-left:20px}.callout li{margin:4px 0}
 .recap{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
@@ -128,6 +130,8 @@ footer{margin-top:22px;color:var(--mute);font-size:13px;text-align:center}
     <input type="text" class="num" id="jump" inputmode="numeric" placeholder="e.g. 100">
     <button class="sec" id="go">Show</button>
   </div>
+  <div class="row"><button class="sec" id="net">🌐 Connect to EduNet · show EDU-D balances</button><span class="net" id="netstat">offline</span></div>
+  <div class="sub" style="margin-top:-4px">Optional. Only the public addresses above are sent to the EduNet public RPC — never keys or words.</div>
   <div class="status" id="testnote"></div>
   <div class="callout">
     <h3>💡 Why isn't it simply “key + 1”?</h3>
@@ -153,7 +157,7 @@ footer{margin-top:22px;color:var(--mute);font-size:13px;text-align:center}
     <div>Lose the words, lose everything. Share the words, lose everything. Nobody can reset them.</div>
   </div>
 </div>
-<footer>Standard BIP-39 / BIP-32 / BIP-44 maths, running in your browser — verified against the official test phrase (same addresses as MetaMask). No network, nothing is stored or sent.</footer>
+<footer>Standard BIP-39 / BIP-32 / BIP-44 maths, running in your browser — verified against the official test phrase (same addresses as MetaMask). Works fully offline. Only if you press “Connect to EduNet” are your <i>public</i> addresses sent to the EduNet RPC; keys and words never leave your browser, and nothing is stored.</footer>
 </div>
 
 <script>
@@ -406,7 +410,7 @@ const WIDX = new Map(WORDS.map((w, i) => [w, i]));
 /* ===== state ===== */
 const $ = s => document.querySelector(s);
 let slots = Array(12).fill(null), sel = 0, computed = null, shown = 0, token = 0;
-const accCache = new Map(), revealed = new Set();
+const accCache = new Map(), revealed = new Set(), drawn = new Set();
 
 const filled = () => slots.filter(x => x !== null).length;
 const complete = () => filled() === 12;
@@ -472,7 +476,7 @@ function setStage(n) { for (let i = 1; i <= 4; i++) $('#n' + i).classList.toggle
 let timer = null;
 function recompute() {
   clearTimeout(timer); const my = ++token;
-  accCache.clear(); revealed.clear(); computed = null;
+  accCache.clear(); revealed.clear(); drawn.clear(); computed = null;
   if (!valid()) { $('#c2').classList.add('dim'); $('#c3').classList.add('dim'); setStage(complete() ? 0 : 0); $('#viz').innerHTML = ''; $('#seedstat').textContent = ''; $('#accts').innerHTML = ''; $('#path').innerHTML = ''; $('#raw').textContent = ''; $('#testnote').textContent = ''; return; }
   setStage(1); $('#c2').classList.remove('dim'); $('#seedstat').innerHTML = '<span class="sub">⏳ stretching 2048 rounds…</span>';
   timer = setTimeout(() => {
@@ -498,10 +502,10 @@ function renderAccounts() {
   if (computed.extra !== undefined && !ids.includes(computed.extra)) ids.push(computed.extra);
   $('#accts').innerHTML = ids.map(i => {
     if (!accCache.has(i)) accCache.set(i, ethAccount(computed.root, i));
-    const a = accCache.get(i), show = revealed.has(i);
-    return `<div class="acct"><div class="av" style="${avatar(a.addr)}"></div><div class="main">
+    const a = accCache.get(i), show = revealed.has(i), fresh = !drawn.has(i); drawn.add(i);
+    return `<div class="acct"${fresh ? '' : ' style="animation:none"'}><div class="av" style="${avatar(a.addr)}"></div><div class="main">
       <div><span class="idx">Account #${i}</span> <span class="sub mono">m/44'/60'/0'/0/${i}</span></div>
-      <div class="addr">${a.addr}</div>
+      <div class="addr">${a.addr}</div>${balHtml(a.addr)}
       <div class="pk">private key: ${show ? hex256(a.d) : '•'.repeat(40)}</div></div>
       <div><button class="sec sm" data-r="${i}">${show ? 'Hide' : 'Reveal'} key</button></div></div>`;
   }).join('');
@@ -509,14 +513,62 @@ function renderAccounts() {
   setStage(4);
   $('#testnote').innerHTML = computed.test ? '<span class="sub">Check it yourself: import this public test phrase into MetaMask — account 1 is <b>0x9858…Eda94</b>.</span>' : '';
 }
-$('#add').onclick = () => { if (computed) { shown++; renderAccounts(); } };
+$('#add').onclick = () => { if (computed) { shown++; renderAccounts(); refreshBalances(); } };
 $('#go').onclick = () => {
   const n = Number($('#jump').value.trim());
   if (!computed || !Number.isInteger(n) || n < 0 || n >= 0x80000000) { $('#testnote').innerHTML = '<span class="bad">Enter a whole number between 0 and 2,147,483,647.</span>'; return; }
   if (n < shown) { $('#testnote').innerHTML = `<span class="sub">Account #${n} is already in the list.</span>`; return; }
-  computed.extra = n; renderAccounts();
+  computed.extra = n; renderAccounts(); refreshBalances();
 };
 $('#jump').onkeydown = e => { if (e.key === 'Enter') $('#go').click(); };
+
+/* ===== optional: EduNet balances (native EDU-D) ===== */
+const EDU_RPC = 'https://rpc.dimikog.org/rpc/', EDU_CHAIN = 424242;
+let netOn = false, netTimer = null;
+const balances = new Map();
+async function rpc(batch) {
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 8000);
+  try {
+    const r = await fetch(EDU_RPC, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(batch), signal: ctl.signal });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return await r.json();
+  } finally { clearTimeout(t); }
+}
+function fmtEdu(wei) {
+  const whole = wei / 10n ** 18n, frac = (wei % 10n ** 18n).toString().padStart(18, '0').slice(0, 4).replace(/0+$/, '');
+  return whole.toLocaleString('en-US') + (frac ? '.' + frac : '');
+}
+function balHtml(addr) {
+  if (!netOn) return '';
+  if (!balances.has(addr)) return '<div class="bal zero">💰 …</div>';
+  const w = balances.get(addr);
+  return `<div class="bal ${w === 0n ? 'zero' : ''}">💰 ${fmtEdu(w)} EDU-D</div>`;
+}
+function netStatus(cls, txt) { const el = $('#netstat'); el.className = 'net ' + cls; el.textContent = txt; }
+async function refreshBalances() {
+  if (!netOn || !computed) return;
+  const addrs = [...document.querySelectorAll('.acct .addr')].map(e => e.textContent);
+  if (!addrs.length) return;
+  try {
+    const res = await rpc([{ jsonrpc: '2.0', id: 0, method: 'eth_blockNumber', params: [] },
+      ...addrs.map((a, i) => ({ jsonrpc: '2.0', id: i + 1, method: 'eth_getBalance', params: [a, 'latest'] }))]);
+    const by = new Map(res.map(r => [r.id, r]));
+    addrs.forEach((a, i) => { const r = by.get(i + 1); if (r && typeof r.result === 'string' && /^0x[0-9a-f]+$/i.test(r.result)) balances.set(a, BigInt(r.result)); });
+    const bn = by.get(0) && parseInt(by.get(0).result, 16);
+    netStatus('on', '● EduNet · chain ' + EDU_CHAIN + (bn ? ' · block ' + bn.toLocaleString('en-US') : ''));
+    renderAccounts();
+  } catch (e) { netStatus('off', '● RPC unreachable'); }
+}
+$('#net').onclick = async () => {
+  if (netOn) { netOn = false; clearInterval(netTimer); $('#net').textContent = '🌐 Connect to EduNet · show EDU-D balances'; netStatus('', 'offline'); renderAccounts(); return; }
+  netStatus('', 'connecting…');
+  try {
+    const res = await rpc([{ jsonrpc: '2.0', id: 1, method: 'eth_chainId', params: [] }]);
+    if (parseInt(res[0].result, 16) !== EDU_CHAIN) throw new Error('wrong chain');
+  } catch (e) { netStatus('off', '● could not connect'); return; }
+  netOn = true; $('#net').textContent = '⏏ Disconnect'; renderAccounts(); await refreshBalances();
+  netTimer = setInterval(() => { if (!document.hidden) refreshBalances(); }, 10000);
+};
 
 changed();
 </script>
