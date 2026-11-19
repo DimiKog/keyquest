@@ -9,3 +9,5 @@ Two small teaching tools for blockchain cryptography, no dependencies, real cryp
 - `deploy/` — systemd unit, nginx config and runbook.
 
 Educational use only. Don't use the generated keys for real funds, and don't post secrets on the public board.
+
+**SignedLedger** (`ledger.html` + `ledger-server.js`): wallet → sign a payment → public virtual ledger that checks signature, nonce, balance and shows rejected attempts. `ledger.html` is generated: edit `tools/ledger.src.html`, then `node tools/build-ledger.js`. Deploy: `deploy/LEDGER_RUNBOOK.md`.

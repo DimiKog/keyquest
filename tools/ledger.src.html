@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SignedLedger</title>
+<style>
+/*STYLE*/
+.two{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:860px){.two{grid-template-columns:1fr}}
+textarea{width:100%;padding:11px 14px;font:16px ui-monospace,Menlo,monospace;background:#0b101c;border:1px solid var(--line);border-radius:10px;color:var(--ink)}
+select{padding:11px 12px;font-size:16px;background:#0b101c;border:1px solid var(--line);border-radius:10px;color:var(--ink);font-family:inherit}
+.wordbox{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}
+@media(max-width:760px){.wordbox{grid-template-columns:repeat(2,1fr)}}
+.wordbox div{background:#0d1428;border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-weight:700}
+.wordbox small{color:var(--mute);font-weight:400;margin-right:4px}
+.who{display:flex;align-items:center;gap:12px;padding:9px 12px;background:#0d1428;border:1px solid var(--line);border-radius:12px;margin:6px 0}
+.who.me{border-color:var(--acc)}
+.who .main{flex:1;min-width:0}.who .nm{font-weight:700}.who .ad{font:12px ui-monospace,Menlo,monospace;color:var(--mute)}
+.who .bl{font-weight:800;color:var(--acc);white-space:nowrap}
+.msgbox{background:#0b101c;border:1px dashed #4a5a92;border-radius:10px;padding:12px;font:14px ui-monospace,Menlo,monospace;word-break:break-all;margin:8px 0}
+.msgbox b{color:var(--warn)}
+.sig{background:#0b101c;border:1px solid var(--line);border-radius:10px;padding:10px;font:12px ui-monospace,Menlo,monospace;word-break:break-all;color:var(--acc2);margin:8px 0}
+.attacks{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:10px}
+@media(max-width:760px){.attacks{grid-template-columns:1fr}}
+.attacks button{text-align:left;background:#2a1a24;color:#fecaca;border:1px solid #6b2a3a}
+.attacks small{display:block;font-weight:400;color:#d9a3ad;margin-top:2px}
+.res{margin-top:12px;padding:10px 14px;border-radius:10px;font-size:15px;display:none}
+.res.ok{display:block;background:#12301f;border:1px solid #1f6b3a;color:#b7f5cc}
+.res.bad{display:block;background:#33151c;border:1px solid #7a2a3a;color:#fecaca}
+.tx{display:grid;grid-template-columns:70px 1fr auto;gap:10px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line);font-size:15px}
+.tx .t{color:var(--mute);font-size:12px}.tx .a{font-weight:800;color:var(--acc)}.tx .m{color:var(--mute);font-size:13px}
+.tx.r .a{color:var(--bad)}.tx.r{background:#2a1218}
+.pill{display:inline-block;padding:3px 10px;border-radius:99px;font-size:13px;border:1px solid var(--line);color:var(--mute)}
+.pill.on{border-color:var(--ok);color:var(--ok)}.pill.off{border-color:var(--bad);color:var(--bad)}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Signed<span>Ledger</span></h1>
+<div class="tag">Make a wallet, sign a payment with your private key, and watch a public ledger accept — or reject — it.</div>
+<div class="warn-banner">⚠ Play money on a teaching server. Never type a real recovery phrase here. The ledger is <b>one trusted server</b> — a blockchain replaces that single server with a network (that is the next lesson).</div>
+<div style="margin-bottom:14px"><span class="pill" id="conn">connecting…</span></div>
+
+<div class="card" id="c1">
+  <h2><span class="n">1</span>Your wallet</h2>
+  <p class="lead">Your wallet is 12 words. They create your private key, which creates your address (account #0, exactly as in WordWallet).</p>
+  <div class="row">
+    <button id="newW">🎲 Create a new wallet</button>
+    <button class="sec" id="resW">I already have 12 words</button>
+  </div>
+  <div id="restore" class="hidden">
+    <textarea id="wordsIn" rows="2" placeholder="word1 word2 … word12"></textarea>
+    <div class="row"><button class="sec" id="goRestore">Restore</button><span class="status" id="restStat"></span></div>
+  </div>
+  <div id="mine" class="hidden">
+    <div class="wordbox" id="wordbox"></div>
+    <div class="who me"><div class="av" id="myav"></div><div class="main"><div class="nm">Your address</div><div class="ad" id="myaddr" style="word-break:break-all"></div></div><div class="bl" id="mybal"></div></div>
+    <details><summary>Your private key (never share it)</summary><div class="mono" id="mypk" style="margin-top:6px"></div></details>
+    <div class="row" id="joinRow">
+      <input type="text" id="nick" maxlength="24" placeholder="Choose a nickname" style="max-width:260px">
+      <button id="join">✍ Sign &amp; join the ledger (+100 coins)</button>
+    </div>
+    <div class="status" id="joinStat"></div>
+    <details id="joinWhy" class="hidden"><summary>What did “join” sign?</summary><div class="msgbox" id="joinMsg"></div>Anyone can see your public key and address — but only you can produce this signature, so nobody can register your address under their name.</details>
+  </div>
+</div>
+
+<div class="two">
+<div class="card" id="c2">
+  <h2><span class="n">2</span>People on the ledger</h2>
+  <p class="lead">Pick a classmate to pay. Balances update by themselves.</p>
+  <div id="people"><div class="lead">No one yet.</div></div>
+</div>
+
+<div class="card dim" id="c3">
+  <h2><span class="n">3</span>Write &amp; sign a payment</h2>
+  <p class="lead">A payment is just data. The signature proves <i>you</i> wrote exactly this data.</p>
+  <div class="row"><select id="to" style="flex:1;min-width:180px"></select></div>
+  <div class="row">
+    <input type="text" id="amt" class="num" inputmode="numeric" placeholder="amount" value="10">
+    <input type="text" id="memo" maxlength="40" placeholder="memo (optional)" style="flex:1">
+  </div>
+  <div class="lead" style="margin:6px 0 0">This exact text is what gets signed:</div>
+  <div class="msgbox" id="msg">…</div>
+  <div class="row"><button id="sign">✍ Sign</button><button id="sendTx" disabled>📤 Send to the ledger</button></div>
+  <div class="sig hidden" id="sigbox"></div>
+  <div class="res" id="res"></div>
+</div>
+</div>
+
+<div class="card dim" id="c4">
+  <h2><span class="n">4</span>Try to cheat</h2>
+  <p class="lead">First send one honest payment above. Then try to fool the ledger — and read why it says no.</p>
+  <div class="attacks">
+    <button id="a1">✏️ Change the amount after signing<small>sign 10, send 999</small></button>
+    <button id="a2">🔁 Send the same signed payment again<small>replay attack</small></button>
+    <button id="a3">🎭 Sign with someone else’s key<small>pretend to be you</small></button>
+    <button id="a4">💸 Spend more than I have<small>correctly signed, but…</small></button>
+  </div>
+  <div class="res" id="ares"></div>
+</div>
+
+<div class="card">
+  <h2><span class="n">5</span>The public ledger</h2>
+  <p class="lead">Everyone sees the same list. Accepted payments move coins; rejected ones are shown too.</p>
+  <h3 style="margin:10px 0 4px;font-size:16px">✅ Accepted</h3>
+  <div id="txs"><div class="lead">Nothing yet.</div></div>
+  <h3 style="margin:16px 0 4px;font-size:16px">❌ Rejected</h3>
+  <div id="rejs"><div class="lead">Nothing yet.</div></div>
+</div>
+
+<div class="card">
+  <h2>What to remember</h2>
+  <div class="recap">
+    <div><b>Signature</b> = proof that the owner of the private key wrote this exact data. Change one character and it breaks.</div>
+    <div><b>Nonce</b> = a counter inside every payment. An old signed payment cannot be played twice.</div>
+    <div><b>Balance check</b> = the ledger refuses what you cannot afford, even with a perfect signature.</div>
+    <div><b>Trust</b> = here you trust one server to apply the rules honestly. A blockchain spreads that job over many computers.</div>
+  </div>
+</div>
+<footer>Signatures are real secp256k1 ECDSA (same as Ethereum), computed in your browser. Only your public key, address, nickname and signed payments are sent to the ledger — never your words or private key.</footer>
+</div>
+
+<script>
+/*CRYPTO*/
+/*CORE*/
+/*WORDS*/
+const LEDGER = (new URLSearchParams(location.search).get('ledger') || 'https://learnencrypt.dimikog.org/ledger').replace(/\/$/, '');
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const NICK = /^[\p{L}\p{N} _.-]{1,24}$/u;
+const short = a => a.slice(0, 8) + '…' + a.slice(-4);
+const hue = b => Math.round(b * 360 / 256);
+function avatarCss(addr) {
+  const b = fromHex(addr.slice(2).toLowerCase());
+  return `background:conic-gradient(from ${b[2] * 1.4}deg,hsl(${hue(b[0])} 80% 55%),hsl(${hue(b[1])} 80% 45%),hsl(${hue(b[3])} 80% 60%),hsl(${hue(b[0])} 80% 55%))`;
+}
+const store = { get: k => { try { return sessionStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { sessionStorage.setItem(k, v); } catch (e) {} } };
+
+let me = null, state = { accts: [], txs: [], rej: [] }, signed = null, lastAccepted = null, online = false;
+const mine = () => me && state.accts.find(a => a.addr === me.addr);
+const sigHex = s => ({ r: hex256(s.r), s: hex256(s.s) });
+
+async function api(path, body) {
+  const r = await fetch(LEDGER + path, body ? { method: 'POST', body: JSON.stringify(body) } : {});
+  const j = await r.json().catch(() => ({ error: 'bad response' }));
+  return { ok: r.ok, status: r.status, ...j };
+}
+
+/* ---------- wallet ---------- */
+function setWallet(idx) {
+  $('#mine').classList.remove('hidden');
+  $('#wordbox').innerHTML = '<div style="grid-column:1/-1;color:var(--mute)">⏳ deriving your key (2048 rounds)…</div>';
+  setTimeout(() => {
+    const words = idx.map(i => WORDS[i]);
+    const acc = ethAccount(ethAccountRoot(mnemonicToSeed(words)), 0);
+    me = { words, d: acc.d, pub: hex256(acc.pub.x) + hex256(acc.pub.y), addr: acc.addr.toLowerCase(), eip: acc.addr };
+    store.set('sl.idx', idx.join(','));
+    $('#wordbox').innerHTML = words.map((w, i) => `<div><small>${i + 1}</small>${w}</div>`).join('');
+    $('#myav').style.cssText = avatarCss(me.addr); $('#myaddr').textContent = me.eip; $('#mypk').textContent = '0x' + hex256(me.d);
+    const n = store.get('sl.nick'); if (n) $('#nick').value = n;
+    refresh(); updateUi();
+  }, 30);
+}
+$('#newW').onclick = () => setWallet(randomMnemonicIdx());
+$('#resW').onclick = () => $('#restore').classList.toggle('hidden');
+$('#goRestore').onclick = () => {
+  const ws = $('#wordsIn').value.trim().toLowerCase().split(/\s+/), st = $('#restStat');
+  if (ws.length !== 12) { st.className = 'status bad'; st.textContent = 'Need exactly 12 words.'; return; }
+  const idx = ws.map(w => WIDX.get(w)); if (idx.includes(undefined)) { st.className = 'status bad'; st.textContent = 'Unknown word: ' + ws[idx.indexOf(undefined)]; return; }
+  if (!mnemonicValid(idx)) { st.className = 'status bad'; st.textContent = 'Checksum fails — one word is wrong.'; return; }
+  st.textContent = ''; setWallet(idx);
+};
+$('#join').onclick = async () => {
+  const nick = $('#nick').value.trim(), st = $('#joinStat');
+  if (!NICK.test(nick)) { st.className = 'status bad'; st.textContent = 'Nickname: 1–24 letters, digits, space . _ -'; return; }
+  const text = `Ledger-v1|join|${me.addr}|${nick}`, s = sigHex(sign(me.d, text));
+  const r = await api('/join', { addr: me.addr, pub: me.pub, nick, ...s });
+  $('#joinMsg').innerHTML = esc(text) + '<br><br>signature r: ' + s.r + '<br>signature s: ' + s.s; $('#joinWhy').classList.remove('hidden');
+  if (r.ok) { store.set('sl.nick', nick); st.className = 'status ok'; st.textContent = r.already ? 'You were already on the ledger.' : '✓ Joined — you received 100 coins.'; }
+  else { st.className = 'status bad'; st.textContent = '✗ ' + r.error; }
+  refresh();
+};
+
+/* ---------- directory / ledger ---------- */
+async function refresh() {
+  try { const r = await api('/state'); if (r.error) throw 0; state = r; online = true; } catch (e) { online = false; }
+  const c = $('#conn'); c.className = 'pill ' + (online ? 'on' : 'off'); c.textContent = online ? '● ledger online · ' + state.accts.length + ' people' : '● ledger unreachable';
+  render();
+}
+function render() {
+  const m = mine();
+  if (me) { $('#mybal').textContent = m ? '💰 ' + m.bal : ''; $('#joinRow').classList.toggle('hidden', !!m); if (m) $('#joinStat').textContent = ''; }
+  $('#people').innerHTML = state.accts.length ? [...state.accts].sort((a, b) => b.bal - a.bal).map(a => `
+    <div class="who ${me && a.addr === me.addr ? 'me' : ''}"><div class="av" style="width:38px;height:38px;${avatarCss(a.addr)}"></div>
+    <div class="main"><div class="nm">${esc(a.nick)}${me && a.addr === me.addr ? ' (you)' : ''}</div><div class="ad">${short(a.addr)}</div></div>
+    <div class="bl">💰 ${a.bal}</div>${me && a.addr !== me.addr && m ? `<button class="sm sec" data-to="${a.addr}">Pay →</button>` : ''}</div>`).join('') : '<div class="lead">No one yet.</div>';
+  document.querySelectorAll('[data-to]').forEach(b => b.onclick = () => { $('#to').value = b.dataset.to; updateMsg(); $('#c3').scrollIntoView({ behavior: 'smooth', block: 'center' }); });
+  const sel = $('#to'), cur = sel.value;
+  sel.innerHTML = '<option value="">— choose who to pay —</option>' + state.accts.filter(a => !me || a.addr !== me.addr).map(a => `<option value="${a.addr}">${esc(a.nick)} · ${short(a.addr)}</option>`).join('');
+  sel.value = cur;
+  $('#txs').innerHTML = state.txs.length ? [...state.txs].reverse().slice(0, 30).map(t => `<div class="tx"><div class="t">${new Date(t.t).toLocaleTimeString()}</div>
+    <div><b>${esc(t.fromNick)}</b> → <b>${esc(t.toNick)}</b> <span class="m">${t.memo ? '· “' + esc(t.memo) + '”' : ''} · nonce ${t.nonce} · sig ${t.r.slice(0, 10)}…</span></div><div class="a">${t.amount}</div></div>`).join('') : '<div class="lead">Nothing yet.</div>';
+  $('#rejs').innerHTML = state.rej.length ? [...state.rej].reverse().slice(0, 20).map(t => `<div class="tx r"><div class="t">${new Date(t.t).toLocaleTimeString()}</div>
+    <div><b>${esc(t.from)}</b> → <b>${esc(t.to)}</b> <span class="m">· ${esc(t.reason)}</span></div><div class="a">${t.amount}</div></div>`).join('') : '<div class="lead">Nothing yet.</div>';
+  updateUi();
+}
+function updateUi() {
+  const m = mine(); $('#c3').classList.toggle('dim', !m); $('#c4').classList.toggle('dim', !(m && lastAccepted));
+}
+
+/* ---------- build & sign ---------- */
+const form = () => ({ from: me.addr, to: $('#to').value, amount: parseInt($('#amt').value, 10), nonce: mine() ? mine().nonce : 0, memo: $('#memo').value.trim() });
+const textOf = t => `Ledger-v1|tx|${t.from}|${t.to}|${t.amount}|${t.nonce}|${t.memo}`;
+function updateMsg() {
+  if (!me) return; const t = form();
+  $('#msg').innerHTML = `Ledger-v1|tx|<b>${t.from}</b>|<b>${t.to || '(choose recipient)'}</b>|<b>${isNaN(t.amount) ? '?' : t.amount}</b>|<b>${t.nonce}</b>|<b>${esc(t.memo)}</b>`;
+  signed = null; $('#sendTx').disabled = true; $('#sigbox').classList.add('hidden');
+}
+['#to', '#amt', '#memo'].forEach(s => $(s).addEventListener('input', updateMsg));
+function show(el, ok, text) { el.className = 'res ' + (ok ? 'ok' : 'bad'); el.innerHTML = text; }
+$('#sign').onclick = () => {
+  const t = form(), r = $('#res');
+  if (!/^0x[0-9a-f]{40}$/.test(t.to) || !(t.amount >= 1)) { show(r, false, 'Choose a recipient and a whole amount ≥ 1.'); return; }
+  const s = sigHex(sign(me.d, textOf(t))); signed = { ...t, ...s };
+  $('#sigbox').classList.remove('hidden'); $('#sigbox').innerHTML = '✍ Signature (r, s) — made with your private key:<br>r = ' + s.r + '<br>s = ' + s.s;
+  $('#sendTx').disabled = false; r.className = 'res';
+};
+$('#sendTx').onclick = async () => {
+  const r = await api('/tx', signed), el = $('#res');
+  if (r.ok) { lastAccepted = { ...signed }; show(el, true, '✓ Accepted. The ledger checked your signature, nonce and balance.'); $('#sendTx').disabled = true; signed = null; }
+  else show(el, false, '✗ Rejected: ' + esc(r.error));
+  await refresh(); updateMsg();
+};
+
+/* ---------- attacks ---------- */
+async function attack(packet, what) {
+  const r = await api('/tx', packet), el = $('#ares');
+  show(el, r.ok, (r.ok ? '⚠ Accepted — ' : '🛡 Rejected — ') + esc(r.ok ? what : r.error));
+  refresh();
+}
+const need = () => { if (!lastAccepted) return false; return true; };
+$('#a1').onclick = () => { const t = { ...form(), amount: 10 }; if (!/^0x/.test(t.to)) t.to = lastAccepted.to; t.amount = 10;
+  const s = sigHex(sign(me.d, textOf(t))); attack({ ...t, amount: 999, ...s }, 'unexpected: tampered amount went through'); };
+$('#a2').onclick = () => attack({ ...lastAccepted }, 'unexpected: replay accepted');
+$('#a3').onclick = () => { const t = { ...form() }; if (!/^0x/.test(t.to)) t.to = lastAccepted.to; const stranger = randKey();
+  attack({ ...t, amount: 5, ...sigHex(sign(stranger, textOf({ ...t, amount: 5 }))) }, 'unexpected: wrong key accepted'); };
+$('#a4').onclick = () => { const t = { ...form(), amount: (mine().bal || 0) + 500 }; if (!/^0x/.test(t.to)) t.to = lastAccepted.to;
+  attack({ ...t, ...sigHex(sign(me.d, textOf(t))) }, 'unexpected: overspend accepted'); };
+
+/* ---------- boot ---------- */
+setInterval(() => { if (!document.hidden) refresh(); }, 4000);
+refresh();
+const saved = store.get('sl.idx'); if (saved) setWallet(saved.split(',').map(Number));
+</script>
+</body>
+</html>

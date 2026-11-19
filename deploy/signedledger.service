@@ -1,0 +1,24 @@
+[Unit]
+Description=SignedLedger server
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/node /opt/signedledger/ledger-server.js
+EnvironmentFile=/etc/signedledger.env
+Environment=PORT=8788 HOST=127.0.0.1 DATA_FILE=/var/lib/signedledger/ledger-data.json
+Restart=on-failure
+DynamicUser=yes
+StateDirectory=signedledger
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+MemoryMax=300M
+
+[Install]
+WantedBy=multi-user.target

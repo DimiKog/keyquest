@@ -1,0 +1,565 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SignedLedger</title>
+<style>
+
+:root{--bg:#0b1020;--panel:#141b30;--panel2:#1b2442;--ink:#e9edf8;--mute:#8d98b8;--acc:#5eead4;--acc2:#a78bfa;--pink:#f472b6;--ok:#4ade80;--bad:#f87171;--warn:#fbbf24;--line:#2a3558}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(1200px 600px at 80% -10%,#1b1f4a55,transparent),radial-gradient(900px 500px at -10% 10%,#0f3a4a55,transparent),var(--bg);color:var(--ink);font:17px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;min-height:100vh}
+.wrap{max-width:1040px;margin:0 auto;padding:22px 20px 70px}
+h1{margin:0;font-size:34px;letter-spacing:.3px}h1 span{background:linear-gradient(90deg,var(--acc),var(--acc2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.tag{color:var(--mute);margin:2px 0 14px}
+.warn-banner{background:#3a2a0f;border:1px solid #6b4d12;color:#fcd98a;border-radius:10px;padding:8px 14px;font-size:14px;margin-bottom:16px}
+.pipe{display:flex;align-items:center;gap:6px;margin:6px 0 20px;flex-wrap:wrap}
+.node{flex:1;min-width:120px;text-align:center;padding:10px 8px;border-radius:14px;border:1px solid var(--line);background:var(--panel);color:var(--mute);transition:.4s}
+.node b{display:block;font-size:22px}.node small{font-size:12px;letter-spacing:.5px;text-transform:uppercase}
+.node.on{border-color:var(--acc);color:var(--ink);box-shadow:0 0 24px #5eead433}
+.arr{color:var(--mute);font-size:20px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:22px;margin-bottom:18px;transition:opacity .3s}
+.card.dim{opacity:.38;pointer-events:none}
+h2{margin:0 0 4px;font-size:22px}h2 .n{display:inline-block;width:30px;height:30px;line-height:30px;text-align:center;border-radius:50%;background:linear-gradient(135deg,var(--acc2),var(--pink));color:#14082e;font-size:16px;margin-right:10px}
+.lead{color:var(--mute);margin:0 0 14px;font-size:15px}
+.slots{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:10px 0}
+@media(max-width:760px){.slots{grid-template-columns:repeat(2,1fr)}}
+.slot{background:#0d1428;border:2px solid var(--line);border-radius:14px;padding:10px 12px;text-align:left;cursor:pointer;color:var(--ink);font:inherit;transition:.2s;min-height:84px}
+.slot:hover{border-color:#4a5a92}
+.slot.sel{border-color:var(--acc);box-shadow:0 0 0 3px #5eead422}
+.slot.filled{background:linear-gradient(160deg,#17214a,#0d1428)}
+.slot .no{font-size:12px;color:var(--mute)}
+.slot .w{font-size:22px;font-weight:700;margin:0;min-height:30px}
+.slot .b{font:11px ui-monospace,Menlo,monospace;color:var(--mute);word-break:break-all}
+.slot .b i{font-style:normal;color:var(--warn)}
+.search{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 6px}
+input[type=text]{flex:1;min-width:200px;padding:11px 14px;font-size:18px;background:#0b101c;border:1px solid var(--line);border-radius:10px;color:var(--ink);font-family:inherit}
+input:focus{outline:2px solid var(--acc);border-color:transparent}
+button{background:var(--acc);color:#04201b;border:0;padding:10px 16px;font-size:15px;font-weight:700;border-radius:10px;cursor:pointer;font-family:inherit}
+button.sec{background:var(--panel2);color:var(--ink);border:1px solid var(--line)}
+button.sm{padding:5px 10px;font-size:13px}
+button:disabled{opacity:.4;cursor:not-allowed}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0;max-height:150px;overflow:auto}
+.chip{background:var(--panel2);border:1px solid var(--line);color:var(--ink);padding:6px 12px;border-radius:99px;font-weight:600;font-size:16px}
+.chip:hover{border-color:var(--acc)}
+.status{margin:10px 0 0;font-size:16px;min-height:26px}
+.ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace;word-break:break-all;font-size:13px}
+details{color:var(--mute);font-size:15px;margin-top:10px}details summary{cursor:pointer;color:var(--acc)}
+.viz{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start;margin:12px 0}
+.viz figure{margin:0;text-align:center}
+.viz figcaption{font-size:12px;color:var(--mute);margin-top:6px;letter-spacing:.4px;text-transform:uppercase}
+.grid8{display:grid;gap:2px;border-radius:8px;overflow:hidden;border:1px solid var(--line)}
+.grid8 i{display:block;width:100%;aspect-ratio:1}
+.arrowv{align-self:center;font-size:26px;color:var(--mute)}
+.path{font:19px ui-monospace,Menlo,monospace;margin:8px 0 2px}
+.path span{padding:2px 6px;border-radius:6px;cursor:default}
+.p1{background:#2d3a6b}.p2{background:#4a2a6b}.p3{background:#1d4a58}.p4{background:#4a3a1d}.p5{background:linear-gradient(135deg,#5eead4,#a78bfa);color:#06141a;font-weight:800}
+.legend{font-size:14px;color:var(--mute);margin:0 0 10px}.legend b{color:var(--ink)}
+.acct{display:flex;gap:14px;align-items:center;background:#0d1428;border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin:10px 0;animation:pop .35s}
+@keyframes pop{from{transform:translateY(8px);opacity:0}to{transform:none;opacity:1}}
+.av{width:46px;height:46px;border-radius:50%;flex:none}
+.acct .main{flex:1;min-width:0}
+.acct .idx{font-weight:800}.acct .addr{font:14px ui-monospace,Menlo,monospace;word-break:break-all}
+.acct .pk{font:12px ui-monospace,Menlo,monospace;color:var(--mute);word-break:break-all;margin-top:4px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:10px 0}
+.num{width:130px;flex:none;min-width:0}
+.bal{margin-top:5px;font-weight:700;color:var(--acc)}.bal.zero{color:var(--mute);font-weight:500}
+.net{display:inline-block;padding:3px 10px;border-radius:99px;font-size:13px;border:1px solid var(--line);color:var(--mute)}.net.on{border-color:var(--ok);color:var(--ok)}.net.off{border-color:var(--bad);color:var(--bad)}
+.callout{background:linear-gradient(135deg,#1c1f4a,#2a1a45);border:1px solid #4a3a8a;border-radius:14px;padding:14px 18px;margin-top:14px}
+.callout h3{margin:0 0 6px;font-size:18px}.callout ul{margin:6px 0 0;padding-left:20px}.callout li{margin:4px 0}
+.recap{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+@media(max-width:760px){.recap{grid-template-columns:1fr}}
+.recap div{background:#0d1428;border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.recap b{color:var(--acc)}
+footer{margin-top:22px;color:var(--mute);font-size:13px;text-align:center}
+
+.two{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:860px){.two{grid-template-columns:1fr}}
+textarea{width:100%;padding:11px 14px;font:16px ui-monospace,Menlo,monospace;background:#0b101c;border:1px solid var(--line);border-radius:10px;color:var(--ink)}
+select{padding:11px 12px;font-size:16px;background:#0b101c;border:1px solid var(--line);border-radius:10px;color:var(--ink);font-family:inherit}
+.wordbox{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}
+@media(max-width:760px){.wordbox{grid-template-columns:repeat(2,1fr)}}
+.wordbox div{background:#0d1428;border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-weight:700}
+.wordbox small{color:var(--mute);font-weight:400;margin-right:4px}
+.who{display:flex;align-items:center;gap:12px;padding:9px 12px;background:#0d1428;border:1px solid var(--line);border-radius:12px;margin:6px 0}
+.who.me{border-color:var(--acc)}
+.who .main{flex:1;min-width:0}.who .nm{font-weight:700}.who .ad{font:12px ui-monospace,Menlo,monospace;color:var(--mute)}
+.who .bl{font-weight:800;color:var(--acc);white-space:nowrap}
+.msgbox{background:#0b101c;border:1px dashed #4a5a92;border-radius:10px;padding:12px;font:14px ui-monospace,Menlo,monospace;word-break:break-all;margin:8px 0}
+.msgbox b{color:var(--warn)}
+.sig{background:#0b101c;border:1px solid var(--line);border-radius:10px;padding:10px;font:12px ui-monospace,Menlo,monospace;word-break:break-all;color:var(--acc2);margin:8px 0}
+.attacks{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:10px}
+@media(max-width:760px){.attacks{grid-template-columns:1fr}}
+.attacks button{text-align:left;background:#2a1a24;color:#fecaca;border:1px solid #6b2a3a}
+.attacks small{display:block;font-weight:400;color:#d9a3ad;margin-top:2px}
+.res{margin-top:12px;padding:10px 14px;border-radius:10px;font-size:15px;display:none}
+.res.ok{display:block;background:#12301f;border:1px solid #1f6b3a;color:#b7f5cc}
+.res.bad{display:block;background:#33151c;border:1px solid #7a2a3a;color:#fecaca}
+.tx{display:grid;grid-template-columns:70px 1fr auto;gap:10px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line);font-size:15px}
+.tx .t{color:var(--mute);font-size:12px}.tx .a{font-weight:800;color:var(--acc)}.tx .m{color:var(--mute);font-size:13px}
+.tx.r .a{color:var(--bad)}.tx.r{background:#2a1218}
+.pill{display:inline-block;padding:3px 10px;border-radius:99px;font-size:13px;border:1px solid var(--line);color:var(--mute)}
+.pill.on{border-color:var(--ok);color:var(--ok)}.pill.off{border-color:var(--bad);color:var(--bad)}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Signed<span>Ledger</span></h1>
+<div class="tag">Make a wallet, sign a payment with your private key, and watch a public ledger accept — or reject — it.</div>
+<div class="warn-banner">⚠ Play money on a teaching server. Never type a real recovery phrase here. The ledger is <b>one trusted server</b> — a blockchain replaces that single server with a network (that is the next lesson).</div>
+<div style="margin-bottom:14px"><span class="pill" id="conn">connecting…</span></div>
+
+<div class="card" id="c1">
+  <h2><span class="n">1</span>Your wallet</h2>
+  <p class="lead">Your wallet is 12 words. They create your private key, which creates your address (account #0, exactly as in WordWallet).</p>
+  <div class="row">
+    <button id="newW">🎲 Create a new wallet</button>
+    <button class="sec" id="resW">I already have 12 words</button>
+  </div>
+  <div id="restore" class="hidden">
+    <textarea id="wordsIn" rows="2" placeholder="word1 word2 … word12"></textarea>
+    <div class="row"><button class="sec" id="goRestore">Restore</button><span class="status" id="restStat"></span></div>
+  </div>
+  <div id="mine" class="hidden">
+    <div class="wordbox" id="wordbox"></div>
+    <div class="who me"><div class="av" id="myav"></div><div class="main"><div class="nm">Your address</div><div class="ad" id="myaddr" style="word-break:break-all"></div></div><div class="bl" id="mybal"></div></div>
+    <details><summary>Your private key (never share it)</summary><div class="mono" id="mypk" style="margin-top:6px"></div></details>
+    <div class="row" id="joinRow">
+      <input type="text" id="nick" maxlength="24" placeholder="Choose a nickname" style="max-width:260px">
+      <button id="join">✍ Sign &amp; join the ledger (+100 coins)</button>
+    </div>
+    <div class="status" id="joinStat"></div>
+    <details id="joinWhy" class="hidden"><summary>What did “join” sign?</summary><div class="msgbox" id="joinMsg"></div>Anyone can see your public key and address — but only you can produce this signature, so nobody can register your address under their name.</details>
+  </div>
+</div>
+
+<div class="two">
+<div class="card" id="c2">
+  <h2><span class="n">2</span>People on the ledger</h2>
+  <p class="lead">Pick a classmate to pay. Balances update by themselves.</p>
+  <div id="people"><div class="lead">No one yet.</div></div>
+</div>
+
+<div class="card dim" id="c3">
+  <h2><span class="n">3</span>Write &amp; sign a payment</h2>
+  <p class="lead">A payment is just data. The signature proves <i>you</i> wrote exactly this data.</p>
+  <div class="row"><select id="to" style="flex:1;min-width:180px"></select></div>
+  <div class="row">
+    <input type="text" id="amt" class="num" inputmode="numeric" placeholder="amount" value="10">
+    <input type="text" id="memo" maxlength="40" placeholder="memo (optional)" style="flex:1">
+  </div>
+  <div class="lead" style="margin:6px 0 0">This exact text is what gets signed:</div>
+  <div class="msgbox" id="msg">…</div>
+  <div class="row"><button id="sign">✍ Sign</button><button id="sendTx" disabled>📤 Send to the ledger</button></div>
+  <div class="sig hidden" id="sigbox"></div>
+  <div class="res" id="res"></div>
+</div>
+</div>
+
+<div class="card dim" id="c4">
+  <h2><span class="n">4</span>Try to cheat</h2>
+  <p class="lead">First send one honest payment above. Then try to fool the ledger — and read why it says no.</p>
+  <div class="attacks">
+    <button id="a1">✏️ Change the amount after signing<small>sign 10, send 999</small></button>
+    <button id="a2">🔁 Send the same signed payment again<small>replay attack</small></button>
+    <button id="a3">🎭 Sign with someone else’s key<small>pretend to be you</small></button>
+    <button id="a4">💸 Spend more than I have<small>correctly signed, but…</small></button>
+  </div>
+  <div class="res" id="ares"></div>
+</div>
+
+<div class="card">
+  <h2><span class="n">5</span>The public ledger</h2>
+  <p class="lead">Everyone sees the same list. Accepted payments move coins; rejected ones are shown too.</p>
+  <h3 style="margin:10px 0 4px;font-size:16px">✅ Accepted</h3>
+  <div id="txs"><div class="lead">Nothing yet.</div></div>
+  <h3 style="margin:16px 0 4px;font-size:16px">❌ Rejected</h3>
+  <div id="rejs"><div class="lead">Nothing yet.</div></div>
+</div>
+
+<div class="card">
+  <h2>What to remember</h2>
+  <div class="recap">
+    <div><b>Signature</b> = proof that the owner of the private key wrote this exact data. Change one character and it breaks.</div>
+    <div><b>Nonce</b> = a counter inside every payment. An old signed payment cannot be played twice.</div>
+    <div><b>Balance check</b> = the ledger refuses what you cannot afford, even with a perfect signature.</div>
+    <div><b>Trust</b> = here you trust one server to apply the rules honestly. A blockchain spreads that job over many computers.</div>
+  </div>
+</div>
+<footer>Signatures are real secp256k1 ECDSA (same as Ethereum), computed in your browser. Only your public key, address, nickname and signed payments are sent to the ledger — never your words or private key.</footer>
+</div>
+
+<script>
+
+const enc = new TextEncoder();
+const toHex = b => Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
+const fromHex = h => Uint8Array.from(h.match(/../g) || [], x => parseInt(x, 16));
+const hex256 = n => n.toString(16).padStart(64, '0');
+
+/* ---------- SHA-256 ---------- */
+const PRIMES = (() => { const p = []; for (let n = 2; p.length < 64; n++) if (p.every(q => n % q)) p.push(n); return p; })();
+const frac32 = x => Math.floor((x - Math.floor(x)) * 4294967296) >>> 0;
+const K256 = PRIMES.map(p => frac32(Math.cbrt(p)));
+const H256 = PRIMES.slice(0, 8).map(p => frac32(Math.sqrt(p)));
+const rotr = (x, n) => (x >>> n) | (x << (32 - n));
+function sha256(msg) {
+  const l = msg.length, len = ((l + 9 + 63) >> 6) << 6;
+  const m = new Uint8Array(len); m.set(msg); m[l] = 0x80;
+  const dv = new DataView(m.buffer);
+  dv.setUint32(len - 4, (l * 8) >>> 0); dv.setUint32(len - 8, Math.floor(l * 8 / 4294967296));
+  const h = Uint32Array.from(H256), w = new Uint32Array(64);
+  for (let off = 0; off < len; off += 64) {
+    for (let i = 0; i < 16; i++) w[i] = dv.getUint32(off + 4 * i);
+    for (let i = 16; i < 64; i++) {
+      const s0 = rotr(w[i - 15], 7) ^ rotr(w[i - 15], 18) ^ (w[i - 15] >>> 3);
+      const s1 = rotr(w[i - 2], 17) ^ rotr(w[i - 2], 19) ^ (w[i - 2] >>> 10);
+      w[i] = (w[i - 16] + s0 + w[i - 7] + s1) | 0;
+    }
+    let [a, b, c, d, e, f, g, hh] = h;
+    for (let i = 0; i < 64; i++) {
+      const S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25), ch = (e & f) ^ (~e & g);
+      const t1 = (hh + S1 + ch + K256[i] + w[i]) | 0;
+      const S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22), maj = (a & b) ^ (a & c) ^ (b & c);
+      const t2 = (S0 + maj) | 0;
+      hh = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+    }
+    [a, b, c, d, e, f, g, hh].forEach((v, i) => h[i] = (h[i] + v) | 0);
+  }
+  const out = new Uint8Array(32), o = new DataView(out.buffer);
+  h.forEach((v, i) => o.setUint32(4 * i, v >>> 0));
+  return out;
+}
+const sha256Hex = s => toHex(sha256(enc.encode(s)));
+
+/* ---------- Keccak-256 (Ethereum) ---------- */
+const M64 = (1n << 64n) - 1n;
+const rotl = (x, n) => n ? ((x << BigInt(n)) | (x >> BigInt(64 - n))) & M64 : x;
+function keccakf(s) {
+  let R = 1;
+  for (let r = 0; r < 24; r++) {
+    const C = [], D = [];
+    for (let x = 0; x < 5; x++) C[x] = s[x] ^ s[x + 5] ^ s[x + 10] ^ s[x + 15] ^ s[x + 20];
+    for (let x = 0; x < 5; x++) D[x] = C[(x + 4) % 5] ^ rotl(C[(x + 1) % 5], 1);
+    for (let i = 0; i < 25; i++) s[i] ^= D[i % 5];
+    let x = 1, y = 0, cur = s[1];
+    for (let t = 0; t < 24; t++) {
+      [x, y] = [y, (2 * x + 3 * y) % 5];
+      const tmp = s[x + 5 * y]; s[x + 5 * y] = rotl(cur, ((t + 1) * (t + 2) / 2) % 64); cur = tmp;
+    }
+    for (let yy = 0; yy < 5; yy++) {
+      const row = s.slice(5 * yy, 5 * yy + 5);
+      for (let xx = 0; xx < 5; xx++) s[xx + 5 * yy] = row[xx] ^ (~row[(xx + 1) % 5] & row[(xx + 2) % 5]);
+    }
+    for (let j = 0; j < 7; j++) {
+      R = ((R << 1) ^ ((R >> 7) * 0x71)) % 256;
+      if (R & 2) s[0] ^= 1n << BigInt((1 << j) - 1);
+    }
+  }
+}
+function keccak256(msg) {
+  const rate = 136, l = msg.length, len = (Math.floor(l / rate) + 1) * rate;
+  const p = new Uint8Array(len); p.set(msg); p[l] ^= 0x01; p[len - 1] ^= 0x80;
+  const s = Array(25).fill(0n);
+  for (let off = 0; off < len; off += rate) {
+    for (let i = 0; i < rate / 8; i++) {
+      let v = 0n;
+      for (let k = 0; k < 8; k++) v |= BigInt(p[off + 8 * i + k]) << BigInt(8 * k);
+      s[i] ^= v;
+    }
+    keccakf(s);
+  }
+  const out = new Uint8Array(32);
+  for (let i = 0; i < 4; i++) for (let k = 0; k < 8; k++) out[8 * i + k] = Number((s[i] >> BigInt(8 * k)) & 0xffn);
+  return out;
+}
+
+/* ---------- secp256k1 ---------- */
+const P = 2n ** 256n - 2n ** 32n - 977n;
+const N = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141n;
+const G = { x: 0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798n,
+            y: 0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8n };
+const mod = (a, m = P) => ((a % m) + m) % m;
+function inv(a, m = P) {
+  let [r0, r1] = [m, mod(a, m)], [s0, s1] = [0n, 1n];
+  while (r1) { const q = r0 / r1; [r0, r1] = [r1, r0 - q * r1]; [s0, s1] = [s1, s0 - q * s1]; }
+  return mod(s0, m);
+}
+function ptAdd(p, q) {
+  if (!p) return q; if (!q) return p;
+  let lam;
+  if (p.x === q.x) {
+    if (mod(p.y + q.y) === 0n) return null;
+    lam = mod(3n * p.x * p.x * inv(2n * p.y));
+  } else lam = mod((q.y - p.y) * inv(q.x - p.x));
+  const x = mod(lam * lam - p.x - q.x);
+  return { x, y: mod(lam * (p.x - x) - p.y) };
+}
+function ptMul(k, p = G) {
+  let r = null, a = p;
+  while (k > 0n) { if (k & 1n) r = ptAdd(r, a); a = ptAdd(a, a); k >>= 1n; }
+  return r;
+}
+function addressOf(pub) {
+  const h = toHex(keccak256(fromHex(hex256(pub.x) + hex256(pub.y)))).slice(-40);
+  const ck = toHex(keccak256(enc.encode(h)));
+  return '0x' + [...h].map((c, i) => parseInt(ck[i], 16) >= 8 ? c.toUpperCase() : c).join('');
+}
+function keyFromPriv(d) { const pub = ptMul(d); return { d, pub, addr: addressOf(pub) }; }
+const msgHash = s => BigInt('0x' + toHex(keccak256(enc.encode(s))));
+function sign(d, text) {
+  const z = msgHash(text);
+  for (let c = 0; ; c++) {
+    const k = mod(BigInt('0x' + toHex(sha256(enc.encode(hex256(d) + hex256(z) + c)))), N);
+    if (!k) continue;
+    const r = mod(ptMul(k).x, N); if (!r) continue;
+    const s = mod(inv(k, N) * (z + r * d), N); if (!s) continue;
+    return { r, s };
+  }
+}
+function verify(pub, text, sig) {
+  const { r, s } = sig;
+  if (r <= 0n || r >= N || s <= 0n || s >= N) return false;
+  const z = msgHash(text), w = inv(s, N);
+  const X = ptAdd(ptMul(mod(z * w, N)), ptMul(mod(r * w, N), pub));
+  return !!X && mod(X.x, N) === r;
+}
+function randBits(n = 256) {
+  const b = new Uint8Array(n / 8); crypto.getRandomValues(b); return b;
+}
+function randKey() {
+  for (;;) { const d = BigInt('0x' + toHex(randBits())); if (d > 0n && d < N) return d; }
+}
+
+
+/* ---------- SHA-512 (32-bit hi/lo pairs, synchronous, constants derived not typed) ---------- */
+const icbrt = n => { let x = 1n << BigInt(Math.ceil(n.toString(2).length / 3) + 1); for (;;) { const y = (2n * x + n / (x * x)) / 3n; if (y >= x) return x; x = y; } };
+const isqrt = n => { let x = 1n << BigInt(Math.ceil(n.toString(2).length / 2) + 1); for (;;) { const y = (x + n / x) >> 1n; if (y >= x) return x; x = y; } };
+const PR = (() => { const p = []; for (let n = 2; p.length < 80; n++) if (p.every(q => n % q)) p.push(n); return p; })();
+const M64b = (1n << 64n) - 1n;
+const K512H = new Uint32Array(80), K512L = new Uint32Array(80), I512H = new Uint32Array(8), I512L = new Uint32Array(8);
+PR.forEach((p, i) => { const v = icbrt(BigInt(p) << 192n) & M64b; K512H[i] = Number(v >> 32n); K512L[i] = Number(v & 0xffffffffn); });
+PR.slice(0, 8).forEach((p, i) => { const v = isqrt(BigInt(p) << 128n) & M64b; I512H[i] = Number(v >> 32n); I512L[i] = Number(v & 0xffffffffn); });
+let rh = 0, rl = 0;
+function add64(ah, al, bh, bl) { const lo = al + bl; rl = lo >>> 0; rh = (ah + bh + (lo > 4294967295 ? 1 : 0)) >>> 0; }
+function sha512(msg) {
+  const l = msg.length, len = ((l + 17 + 127) >> 7) << 7;
+  const m = new Uint8Array(len); m.set(msg); m[l] = 0x80;
+  const dv = new DataView(m.buffer);
+  dv.setUint32(len - 4, (l * 8) >>> 0); dv.setUint32(len - 8, Math.floor(l * 8 / 4294967296));
+  const Hh = Uint32Array.from(I512H), Hl = Uint32Array.from(I512L), Wh = new Uint32Array(80), Wl = new Uint32Array(80);
+  for (let off = 0; off < len; off += 128) {
+    for (let i = 0; i < 16; i++) { Wh[i] = dv.getUint32(off + 8 * i); Wl[i] = dv.getUint32(off + 8 * i + 4); }
+    for (let i = 16; i < 80; i++) {
+      const h15 = Wh[i - 15], l15 = Wl[i - 15], h2 = Wh[i - 2], l2 = Wl[i - 2];
+      const s0h = (((h15 >>> 1) | (l15 << 31)) ^ ((h15 >>> 8) | (l15 << 24)) ^ (h15 >>> 7)) >>> 0;
+      const s0l = (((l15 >>> 1) | (h15 << 31)) ^ ((l15 >>> 8) | (h15 << 24)) ^ ((l15 >>> 7) | (h15 << 25))) >>> 0;
+      const s1h = (((h2 >>> 19) | (l2 << 13)) ^ ((l2 >>> 29) | (h2 << 3)) ^ (h2 >>> 6)) >>> 0;
+      const s1l = (((l2 >>> 19) | (h2 << 13)) ^ ((h2 >>> 29) | (l2 << 3)) ^ ((l2 >>> 6) | (h2 << 26))) >>> 0;
+      add64(Wh[i - 16], Wl[i - 16], s0h, s0l); add64(rh, rl, Wh[i - 7], Wl[i - 7]); add64(rh, rl, s1h, s1l);
+      Wh[i] = rh; Wl[i] = rl;
+    }
+    let ah = Hh[0], al = Hl[0], bh = Hh[1], bl = Hl[1], ch = Hh[2], cl = Hl[2], dh = Hh[3], dl = Hl[3];
+    let eh = Hh[4], el = Hl[4], fh = Hh[5], fl = Hl[5], gh = Hh[6], gl = Hl[6], hh = Hh[7], hl = Hl[7];
+    for (let i = 0; i < 80; i++) {
+      const S1h = (((eh >>> 14) | (el << 18)) ^ ((eh >>> 18) | (el << 14)) ^ ((el >>> 9) | (eh << 23))) >>> 0;
+      const S1l = (((el >>> 14) | (eh << 18)) ^ ((el >>> 18) | (eh << 14)) ^ ((eh >>> 9) | (el << 23))) >>> 0;
+      const chh = ((eh & fh) ^ (~eh & gh)) >>> 0, chl = ((el & fl) ^ (~el & gl)) >>> 0;
+      add64(hh, hl, S1h, S1l); add64(rh, rl, chh, chl); add64(rh, rl, K512H[i], K512L[i]); add64(rh, rl, Wh[i], Wl[i]);
+      const t1h = rh, t1l = rl;
+      const S0h = (((ah >>> 28) | (al << 4)) ^ ((al >>> 2) | (ah << 30)) ^ ((al >>> 7) | (ah << 25))) >>> 0;
+      const S0l = (((al >>> 28) | (ah << 4)) ^ ((ah >>> 2) | (al << 30)) ^ ((ah >>> 7) | (al << 25))) >>> 0;
+      const mjh = ((ah & bh) ^ (ah & ch) ^ (bh & ch)) >>> 0, mjl = ((al & bl) ^ (al & cl) ^ (bl & cl)) >>> 0;
+      add64(S0h, S0l, mjh, mjl); const t2h = rh, t2l = rl;
+      hh = gh; hl = gl; gh = fh; gl = fl; fh = eh; fl = el;
+      add64(dh, dl, t1h, t1l); eh = rh; el = rl;
+      dh = ch; dl = cl; ch = bh; cl = bl; bh = ah; bl = al;
+      add64(t1h, t1l, t2h, t2l); ah = rh; al = rl;
+    }
+    const vh = [ah, bh, ch, dh, eh, fh, gh, hh], vl = [al, bl, cl, dl, el, fl, gl, hl];
+    for (let i = 0; i < 8; i++) { add64(Hh[i], Hl[i], vh[i], vl[i]); Hh[i] = rh; Hl[i] = rl; }
+  }
+  const out = new Uint8Array(64), o = new DataView(out.buffer);
+  for (let i = 0; i < 8; i++) { o.setUint32(8 * i, Hh[i]); o.setUint32(8 * i + 4, Hl[i]); }
+  return out;
+}
+const cat = (...a) => { const r = new Uint8Array(a.reduce((n, x) => n + x.length, 0)); let o = 0; a.forEach(x => { r.set(x, o); o += x.length; }); return r; };
+function hmac512(key, msg) {
+  if (key.length > 128) key = sha512(key);
+  const ip = new Uint8Array(128).fill(0x36), op = new Uint8Array(128).fill(0x5c);
+  key.forEach((b, i) => { ip[i] ^= b; op[i] ^= b; });
+  return sha512(cat(op, sha512(cat(ip, msg))));
+}
+function pbkdf2_512(pw, salt, iters) {
+  let u = hmac512(pw, cat(salt, Uint8Array.of(0, 0, 0, 1))); const t = Uint8Array.from(u);
+  for (let i = 1; i < iters; i++) { u = hmac512(pw, u); for (let j = 0; j < 64; j++) t[j] ^= u[j]; }
+  return t;
+}
+
+/* ---------- BIP-39 ---------- */
+const bin = (n, w) => n.toString(2).padStart(w, '0');
+const bitsOf = idx => idx.map(i => bin(i, 11)).join('');
+const bytesOfBits = b => Uint8Array.from(b.match(/.{8}/g), x => parseInt(x, 2));
+const csBits = entBits => bin(sha256(bytesOfBits(entBits))[0] >> 4, 4);
+function mnemonicValid(idx) { // 12 indices
+  const b = bitsOf(idx); return b.slice(128) === csBits(b.slice(0, 128));
+}
+function validLastIndices(first11) { // the 128 words that complete a valid phrase
+  const pre = bitsOf(first11), out = [];
+  for (let e = 0; e < 128; e++) { const ent = pre + bin(e, 7); out.push(parseInt(bin(e, 7) + csBits(ent), 2)); }
+  return out.sort((a, b) => a - b);
+}
+function randomMnemonicIdx() {
+  const eb = Array.from(randBits(128), x => bin(x, 8)).join(''), b = eb + csBits(eb);
+  return b.match(/.{11}/g).map(x => parseInt(x, 2));
+}
+const nfkd = s => s.normalize('NFKD');
+const mnemonicToSeed = (words, pass = '') => pbkdf2_512(enc.encode(nfkd(words.join(' '))), enc.encode('mnemonic' + nfkd(pass)), 2048);
+
+/* ---------- BIP-32 / BIP-44 (Ethereum: m/44'/60'/0'/0/i) ---------- */
+const be32 = i => Uint8Array.of(i >>> 24, (i >>> 16) & 255, (i >>> 8) & 255, i & 255);
+const big = b => BigInt('0x' + toHex(b));
+function masterFromSeed(seed) { const I = hmac512(enc.encode('Bitcoin seed'), seed); return { k: big(I.slice(0, 32)), c: I.slice(32) }; }
+function ckd(node, i) {
+  const data = i >= 0x80000000 ? cat(Uint8Array.of(0), fromHex(hex256(node.k)), be32(i))
+    : cat(Uint8Array.of(ptMul(node.k).y & 1n ? 3 : 2), fromHex(hex256(ptMul(node.k).x)), be32(i));
+  const I = hmac512(node.c, data);
+  return { k: mod(big(I.slice(0, 32)) + node.k, N), c: I.slice(32) };
+}
+const H = 0x80000000;
+const ethAccountRoot = seed => [44 + H, 60 + H, 0 + H, 0].reduce(ckd, masterFromSeed(seed)); // m/44'/60'/0'/0
+const ethAccount = (root, i) => { const n = ckd(root, i); return keyFromPriv(n.k); };
+
+const WORDS = "abandon ability able about above absent absorb abstract absurd abuse access accident account accuse achieve acid acoustic acquire across act action actor actress actual adapt add addict address adjust admit adult advance advice aerobic affair afford afraid again age agent agree ahead aim air airport aisle alarm album alcohol alert alien all alley allow almost alone alpha already also alter always amateur amazing among amount amused analyst anchor ancient anger angle angry animal ankle announce annual another answer antenna antique anxiety any apart apology appear apple approve april arch arctic area arena argue arm armed armor army around arrange arrest arrive arrow art artefact artist artwork ask aspect assault asset assist assume asthma athlete atom attack attend attitude attract auction audit august aunt author auto autumn average avocado avoid awake aware away awesome awful awkward axis baby bachelor bacon badge bag balance balcony ball bamboo banana banner bar barely bargain barrel base basic basket battle beach bean beauty because become beef before begin behave behind believe below belt bench benefit best betray better between beyond bicycle bid bike bind biology bird birth bitter black blade blame blanket blast bleak bless blind blood blossom blouse blue blur blush board boat body boil bomb bone bonus book boost border boring borrow boss bottom bounce box boy bracket brain brand brass brave bread breeze brick bridge brief bright bring brisk broccoli broken bronze broom brother brown brush bubble buddy budget buffalo build bulb bulk bullet bundle bunker burden burger burst bus business busy butter buyer buzz cabbage cabin cable cactus cage cake call calm camera camp can canal cancel candy cannon canoe canvas canyon capable capital captain car carbon card cargo carpet carry cart case cash casino castle casual cat catalog catch category cattle caught cause caution cave ceiling celery cement census century cereal certain chair chalk champion change chaos chapter charge chase chat cheap check cheese chef cherry chest chicken chief child chimney choice choose chronic chuckle chunk churn cigar cinnamon circle citizen city civil claim clap clarify claw clay clean clerk clever click client cliff climb clinic clip clock clog close cloth cloud clown club clump cluster clutch coach coast coconut code coffee coil coin collect color column combine come comfort comic common company concert conduct confirm congress connect consider control convince cook cool copper copy coral core corn correct cost cotton couch country couple course cousin cover coyote crack cradle craft cram crane crash crater crawl crazy cream credit creek crew cricket crime crisp critic crop cross crouch crowd crucial cruel cruise crumble crunch crush cry crystal cube culture cup cupboard curious current curtain curve cushion custom cute cycle dad damage damp dance danger daring dash daughter dawn day deal debate debris decade december decide decline decorate decrease deer defense define defy degree delay deliver demand demise denial dentist deny depart depend deposit depth deputy derive describe desert design desk despair destroy detail detect develop device devote diagram dial diamond diary dice diesel diet differ digital dignity dilemma dinner dinosaur direct dirt disagree discover disease dish dismiss disorder display distance divert divide divorce dizzy doctor document dog doll dolphin domain donate donkey donor door dose double dove draft dragon drama drastic draw dream dress drift drill drink drip drive drop drum dry duck dumb dune during dust dutch duty dwarf dynamic eager eagle early earn earth easily east easy echo ecology economy edge edit educate effort egg eight either elbow elder electric elegant element elephant elevator elite else embark embody embrace emerge emotion employ empower empty enable enact end endless endorse enemy energy enforce engage engine enhance enjoy enlist enough enrich enroll ensure enter entire entry envelope episode equal equip era erase erode erosion error erupt escape essay essence estate eternal ethics evidence evil evoke evolve exact example excess exchange excite exclude excuse execute exercise exhaust exhibit exile exist exit exotic expand expect expire explain expose express extend extra eye eyebrow fabric face faculty fade faint faith fall false fame family famous fan fancy fantasy farm fashion fat fatal father fatigue fault favorite feature february federal fee feed feel female fence festival fetch fever few fiber fiction field figure file film filter final find fine finger finish fire firm first fiscal fish fit fitness fix flag flame flash flat flavor flee flight flip float flock floor flower fluid flush fly foam focus fog foil fold follow food foot force forest forget fork fortune forum forward fossil foster found fox fragile frame frequent fresh friend fringe frog front frost frown frozen fruit fuel fun funny furnace fury future gadget gain galaxy gallery game gap garage garbage garden garlic garment gas gasp gate gather gauge gaze general genius genre gentle genuine gesture ghost giant gift giggle ginger giraffe girl give glad glance glare glass glide glimpse globe gloom glory glove glow glue goat goddess gold good goose gorilla gospel gossip govern gown grab grace grain grant grape grass gravity great green grid grief grit grocery group grow grunt guard guess guide guilt guitar gun gym habit hair half hammer hamster hand happy harbor hard harsh harvest hat have hawk hazard head health heart heavy hedgehog height hello helmet help hen hero hidden high hill hint hip hire history hobby hockey hold hole holiday hollow home honey hood hope horn horror horse hospital host hotel hour hover hub huge human humble humor hundred hungry hunt hurdle hurry hurt husband hybrid ice icon idea identify idle ignore ill illegal illness image imitate immense immune impact impose improve impulse inch include income increase index indicate indoor industry infant inflict inform inhale inherit initial inject injury inmate inner innocent input inquiry insane insect inside inspire install intact interest into invest invite involve iron island isolate issue item ivory jacket jaguar jar jazz jealous jeans jelly jewel job join joke journey joy judge juice jump jungle junior junk just kangaroo keen keep ketchup key kick kid kidney kind kingdom kiss kit kitchen kite kitten kiwi knee knife knock know lab label labor ladder lady lake lamp language laptop large later latin laugh laundry lava law lawn lawsuit layer lazy leader leaf learn leave lecture left leg legal legend leisure lemon lend length lens leopard lesson letter level liar liberty library license life lift light like limb limit link lion liquid list little live lizard load loan lobster local lock logic lonely long loop lottery loud lounge love loyal lucky luggage lumber lunar lunch luxury lyrics machine mad magic magnet maid mail main major make mammal man manage mandate mango mansion manual maple marble march margin marine market marriage mask mass master match material math matrix matter maximum maze meadow mean measure meat mechanic medal media melody melt member memory mention menu mercy merge merit merry mesh message metal method middle midnight milk million mimic mind minimum minor minute miracle mirror misery miss mistake mix mixed mixture mobile model modify mom moment monitor monkey monster month moon moral more morning mosquito mother motion motor mountain mouse move movie much muffin mule multiply muscle museum mushroom music must mutual myself mystery myth naive name napkin narrow nasty nation nature near neck need negative neglect neither nephew nerve nest net network neutral never news next nice night noble noise nominee noodle normal north nose notable note nothing notice novel now nuclear number nurse nut oak obey object oblige obscure observe obtain obvious occur ocean october odor off offer office often oil okay old olive olympic omit once one onion online only open opera opinion oppose option orange orbit orchard order ordinary organ orient original orphan ostrich other outdoor outer output outside oval oven over own owner oxygen oyster ozone pact paddle page pair palace palm panda panel panic panther paper parade parent park parrot party pass patch path patient patrol pattern pause pave payment peace peanut pear peasant pelican pen penalty pencil people pepper perfect permit person pet phone photo phrase physical piano picnic picture piece pig pigeon pill pilot pink pioneer pipe pistol pitch pizza place planet plastic plate play please pledge pluck plug plunge poem poet point polar pole police pond pony pool popular portion position possible post potato pottery poverty powder power practice praise predict prefer prepare present pretty prevent price pride primary print priority prison private prize problem process produce profit program project promote proof property prosper protect proud provide public pudding pull pulp pulse pumpkin punch pupil puppy purchase purity purpose purse push put puzzle pyramid quality quantum quarter question quick quit quiz quote rabbit raccoon race rack radar radio rail rain raise rally ramp ranch random range rapid rare rate rather raven raw razor ready real reason rebel rebuild recall receive recipe record recycle reduce reflect reform refuse region regret regular reject relax release relief rely remain remember remind remove render renew rent reopen repair repeat replace report require rescue resemble resist resource response result retire retreat return reunion reveal review reward rhythm rib ribbon rice rich ride ridge rifle right rigid ring riot ripple risk ritual rival river road roast robot robust rocket romance roof rookie room rose rotate rough round route royal rubber rude rug rule run runway rural sad saddle sadness safe sail salad salmon salon salt salute same sample sand satisfy satoshi sauce sausage save say scale scan scare scatter scene scheme school science scissors scorpion scout scrap screen script scrub sea search season seat second secret section security seed seek segment select sell seminar senior sense sentence series service session settle setup seven shadow shaft shallow share shed shell sheriff shield shift shine ship shiver shock shoe shoot shop short shoulder shove shrimp shrug shuffle shy sibling sick side siege sight sign silent silk silly silver similar simple since sing siren sister situate six size skate sketch ski skill skin skirt skull slab slam sleep slender slice slide slight slim slogan slot slow slush small smart smile smoke smooth snack snake snap sniff snow soap soccer social sock soda soft solar soldier solid solution solve someone song soon sorry sort soul sound soup source south space spare spatial spawn speak special speed spell spend sphere spice spider spike spin spirit split spoil sponsor spoon sport spot spray spread spring spy square squeeze squirrel stable stadium staff stage stairs stamp stand start state stay steak steel stem step stereo stick still sting stock stomach stone stool story stove strategy street strike strong struggle student stuff stumble style subject submit subway success such sudden suffer sugar suggest suit summer sun sunny sunset super supply supreme sure surface surge surprise surround survey suspect sustain swallow swamp swap swarm swear sweet swift swim swing switch sword symbol symptom syrup system table tackle tag tail talent talk tank tape target task taste tattoo taxi teach team tell ten tenant tennis tent term test text thank that theme then theory there they thing this thought three thrive throw thumb thunder ticket tide tiger tilt timber time tiny tip tired tissue title toast tobacco today toddler toe together toilet token tomato tomorrow tone tongue tonight tool tooth top topic topple torch tornado tortoise toss total tourist toward tower town toy track trade traffic tragic train transfer trap trash travel tray treat tree trend trial tribe trick trigger trim trip trophy trouble truck true truly trumpet trust truth try tube tuition tumble tuna tunnel turkey turn turtle twelve twenty twice twin twist two type typical ugly umbrella unable unaware uncle uncover under undo unfair unfold unhappy uniform unique unit universe unknown unlock until unusual unveil update upgrade uphold upon upper upset urban urge usage use used useful useless usual utility vacant vacuum vague valid valley valve van vanish vapor various vast vault vehicle velvet vendor venture venue verb verify version very vessel veteran viable vibrant vicious victory video view village vintage violin virtual virus visa visit visual vital vivid vocal voice void volcano volume vote voyage wage wagon wait walk wall walnut want warfare warm warrior wash wasp waste water wave way wealth weapon wear weasel weather web wedding weekend weird welcome west wet whale what wheat wheel when where whip whisper wide width wife wild will win window wine wing wink winner winter wire wisdom wise wish witness wolf woman wonder wood wool word work world worry worth wrap wreck wrestle wrist write wrong yard year yellow you young youth zebra zero zone zoo".split(' ');
+const WIDX = new Map(WORDS.map((w, i) => [w, i]));
+const LEDGER = (new URLSearchParams(location.search).get('ledger') || 'https://learnencrypt.dimikog.org/ledger').replace(/\/$/, '');
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const NICK = /^[\p{L}\p{N} _.-]{1,24}$/u;
+const short = a => a.slice(0, 8) + '…' + a.slice(-4);
+const hue = b => Math.round(b * 360 / 256);
+function avatarCss(addr) {
+  const b = fromHex(addr.slice(2).toLowerCase());
+  return `background:conic-gradient(from ${b[2] * 1.4}deg,hsl(${hue(b[0])} 80% 55%),hsl(${hue(b[1])} 80% 45%),hsl(${hue(b[3])} 80% 60%),hsl(${hue(b[0])} 80% 55%))`;
+}
+const store = { get: k => { try { return sessionStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { sessionStorage.setItem(k, v); } catch (e) {} } };
+
+let me = null, state = { accts: [], txs: [], rej: [] }, signed = null, lastAccepted = null, online = false;
+const mine = () => me && state.accts.find(a => a.addr === me.addr);
+const sigHex = s => ({ r: hex256(s.r), s: hex256(s.s) });
+
+async function api(path, body) {
+  const r = await fetch(LEDGER + path, body ? { method: 'POST', body: JSON.stringify(body) } : {});
+  const j = await r.json().catch(() => ({ error: 'bad response' }));
+  return { ok: r.ok, status: r.status, ...j };
+}
+
+/* ---------- wallet ---------- */
+function setWallet(idx) {
+  $('#mine').classList.remove('hidden');
+  $('#wordbox').innerHTML = '<div style="grid-column:1/-1;color:var(--mute)">⏳ deriving your key (2048 rounds)…</div>';
+  setTimeout(() => {
+    const words = idx.map(i => WORDS[i]);
+    const acc = ethAccount(ethAccountRoot(mnemonicToSeed(words)), 0);
+    me = { words, d: acc.d, pub: hex256(acc.pub.x) + hex256(acc.pub.y), addr: acc.addr.toLowerCase(), eip: acc.addr };
+    store.set('sl.idx', idx.join(','));
+    $('#wordbox').innerHTML = words.map((w, i) => `<div><small>${i + 1}</small>${w}</div>`).join('');
+    $('#myav').style.cssText = avatarCss(me.addr); $('#myaddr').textContent = me.eip; $('#mypk').textContent = '0x' + hex256(me.d);
+    const n = store.get('sl.nick'); if (n) $('#nick').value = n;
+    refresh(); updateUi();
+  }, 30);
+}
+$('#newW').onclick = () => setWallet(randomMnemonicIdx());
+$('#resW').onclick = () => $('#restore').classList.toggle('hidden');
+$('#goRestore').onclick = () => {
+  const ws = $('#wordsIn').value.trim().toLowerCase().split(/\s+/), st = $('#restStat');
+  if (ws.length !== 12) { st.className = 'status bad'; st.textContent = 'Need exactly 12 words.'; return; }
+  const idx = ws.map(w => WIDX.get(w)); if (idx.includes(undefined)) { st.className = 'status bad'; st.textContent = 'Unknown word: ' + ws[idx.indexOf(undefined)]; return; }
+  if (!mnemonicValid(idx)) { st.className = 'status bad'; st.textContent = 'Checksum fails — one word is wrong.'; return; }
+  st.textContent = ''; setWallet(idx);
+};
+$('#join').onclick = async () => {
+  const nick = $('#nick').value.trim(), st = $('#joinStat');
+  if (!NICK.test(nick)) { st.className = 'status bad'; st.textContent = 'Nickname: 1–24 letters, digits, space . _ -'; return; }
+  const text = `Ledger-v1|join|${me.addr}|${nick}`, s = sigHex(sign(me.d, text));
+  const r = await api('/join', { addr: me.addr, pub: me.pub, nick, ...s });
+  $('#joinMsg').innerHTML = esc(text) + '<br><br>signature r: ' + s.r + '<br>signature s: ' + s.s; $('#joinWhy').classList.remove('hidden');
+  if (r.ok) { store.set('sl.nick', nick); st.className = 'status ok'; st.textContent = r.already ? 'You were already on the ledger.' : '✓ Joined — you received 100 coins.'; }
+  else { st.className = 'status bad'; st.textContent = '✗ ' + r.error; }
+  refresh();
+};
+
+/* ---------- directory / ledger ---------- */
+async function refresh() {
+  try { const r = await api('/state'); if (r.error) throw 0; state = r; online = true; } catch (e) { online = false; }
+  const c = $('#conn'); c.className = 'pill ' + (online ? 'on' : 'off'); c.textContent = online ? '● ledger online · ' + state.accts.length + ' people' : '● ledger unreachable';
+  render();
+}
+function render() {
+  const m = mine();
+  if (me) { $('#mybal').textContent = m ? '💰 ' + m.bal : ''; $('#joinRow').classList.toggle('hidden', !!m); if (m) $('#joinStat').textContent = ''; }
+  $('#people').innerHTML = state.accts.length ? [...state.accts].sort((a, b) => b.bal - a.bal).map(a => `
+    <div class="who ${me && a.addr === me.addr ? 'me' : ''}"><div class="av" style="width:38px;height:38px;${avatarCss(a.addr)}"></div>
+    <div class="main"><div class="nm">${esc(a.nick)}${me && a.addr === me.addr ? ' (you)' : ''}</div><div class="ad">${short(a.addr)}</div></div>
+    <div class="bl">💰 ${a.bal}</div>${me && a.addr !== me.addr && m ? `<button class="sm sec" data-to="${a.addr}">Pay →</button>` : ''}</div>`).join('') : '<div class="lead">No one yet.</div>';
+  document.querySelectorAll('[data-to]').forEach(b => b.onclick = () => { $('#to').value = b.dataset.to; updateMsg(); $('#c3').scrollIntoView({ behavior: 'smooth', block: 'center' }); });
+  const sel = $('#to'), cur = sel.value;
+  sel.innerHTML = '<option value="">— choose who to pay —</option>' + state.accts.filter(a => !me || a.addr !== me.addr).map(a => `<option value="${a.addr}">${esc(a.nick)} · ${short(a.addr)}</option>`).join('');
+  sel.value = cur;
+  $('#txs').innerHTML = state.txs.length ? [...state.txs].reverse().slice(0, 30).map(t => `<div class="tx"><div class="t">${new Date(t.t).toLocaleTimeString()}</div>
+    <div><b>${esc(t.fromNick)}</b> → <b>${esc(t.toNick)}</b> <span class="m">${t.memo ? '· “' + esc(t.memo) + '”' : ''} · nonce ${t.nonce} · sig ${t.r.slice(0, 10)}…</span></div><div class="a">${t.amount}</div></div>`).join('') : '<div class="lead">Nothing yet.</div>';
+  $('#rejs').innerHTML = state.rej.length ? [...state.rej].reverse().slice(0, 20).map(t => `<div class="tx r"><div class="t">${new Date(t.t).toLocaleTimeString()}</div>
+    <div><b>${esc(t.from)}</b> → <b>${esc(t.to)}</b> <span class="m">· ${esc(t.reason)}</span></div><div class="a">${t.amount}</div></div>`).join('') : '<div class="lead">Nothing yet.</div>';
+  updateUi();
+}
+function updateUi() {
+  const m = mine(); $('#c3').classList.toggle('dim', !m); $('#c4').classList.toggle('dim', !(m && lastAccepted));
+}
+
+/* ---------- build & sign ---------- */
+const form = () => ({ from: me.addr, to: $('#to').value, amount: parseInt($('#amt').value, 10), nonce: mine() ? mine().nonce : 0, memo: $('#memo').value.trim() });
+const textOf = t => `Ledger-v1|tx|${t.from}|${t.to}|${t.amount}|${t.nonce}|${t.memo}`;
+function updateMsg() {
+  if (!me) return; const t = form();
+  $('#msg').innerHTML = `Ledger-v1|tx|<b>${t.from}</b>|<b>${t.to || '(choose recipient)'}</b>|<b>${isNaN(t.amount) ? '?' : t.amount}</b>|<b>${t.nonce}</b>|<b>${esc(t.memo)}</b>`;
+  signed = null; $('#sendTx').disabled = true; $('#sigbox').classList.add('hidden');
+}
+['#to', '#amt', '#memo'].forEach(s => $(s).addEventListener('input', updateMsg));
+function show(el, ok, text) { el.className = 'res ' + (ok ? 'ok' : 'bad'); el.innerHTML = text; }
+$('#sign').onclick = () => {
+  const t = form(), r = $('#res');
+  if (!/^0x[0-9a-f]{40}$/.test(t.to) || !(t.amount >= 1)) { show(r, false, 'Choose a recipient and a whole amount ≥ 1.'); return; }
+  const s = sigHex(sign(me.d, textOf(t))); signed = { ...t, ...s };
+  $('#sigbox').classList.remove('hidden'); $('#sigbox').innerHTML = '✍ Signature (r, s) — made with your private key:<br>r = ' + s.r + '<br>s = ' + s.s;
+  $('#sendTx').disabled = false; r.className = 'res';
+};
+$('#sendTx').onclick = async () => {
+  const r = await api('/tx', signed), el = $('#res');
+  if (r.ok) { lastAccepted = { ...signed }; show(el, true, '✓ Accepted. The ledger checked your signature, nonce and balance.'); $('#sendTx').disabled = true; signed = null; }
+  else show(el, false, '✗ Rejected: ' + esc(r.error));
+  await refresh(); updateMsg();
+};
+
+/* ---------- attacks ---------- */
+async function attack(packet, what) {
+  const r = await api('/tx', packet), el = $('#ares');
+  show(el, r.ok, (r.ok ? '⚠ Accepted — ' : '🛡 Rejected — ') + esc(r.ok ? what : r.error));
+  refresh();
+}
+const need = () => { if (!lastAccepted) return false; return true; };
+$('#a1').onclick = () => { const t = { ...form(), amount: 10 }; if (!/^0x/.test(t.to)) t.to = lastAccepted.to; t.amount = 10;
+  const s = sigHex(sign(me.d, textOf(t))); attack({ ...t, amount: 999, ...s }, 'unexpected: tampered amount went through'); };
+$('#a2').onclick = () => attack({ ...lastAccepted }, 'unexpected: replay accepted');
+$('#a3').onclick = () => { const t = { ...form() }; if (!/^0x/.test(t.to)) t.to = lastAccepted.to; const stranger = randKey();
+  attack({ ...t, amount: 5, ...sigHex(sign(stranger, textOf({ ...t, amount: 5 }))) }, 'unexpected: wrong key accepted'); };
+$('#a4').onclick = () => { const t = { ...form(), amount: (mine().bal || 0) + 500 }; if (!/^0x/.test(t.to)) t.to = lastAccepted.to;
+  attack({ ...t, ...sigHex(sign(me.d, textOf(t))) }, 'unexpected: overspend accepted'); };
+
+/* ---------- boot ---------- */
+setInterval(() => { if (!document.hidden) refresh(); }, 4000);
+refresh();
+const saved = store.get('sl.idx'); if (saved) setWallet(saved.split(',').map(Number));
+</script>
+</body>
+</html>
